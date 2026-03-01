@@ -1,11 +1,11 @@
 import type {Request, Response, NextFunction} from "express";
 import z from "zod";
 import type {TenantsResponse} from "@kamers/shared";
-import {HttpException} from "../lib/http-exception.js";
-import {parsePagination} from "../lib/pagination.js";
-import {parseRequestObj} from "../lib/parse.js";
-import type TenantService from "../services/tenant-service.js";
-import {TenantError} from "../services/tenant-service.js";
+import {HttpException} from "../lib/http-exception";
+import {parsePagination} from "../lib/pagination";
+import {parseRequestObj} from "../lib/parse";
+import type TenantService from "../services/tenant-service";
+import {TenantError} from "../services/tenant-service";
 
 const createTenantSchema = z.object({
     name: z.string().min(1),

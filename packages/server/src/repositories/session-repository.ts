@@ -7,9 +7,9 @@ import {
     type EmptyResult,
     type RawModel,
 } from "@kamers/shared";
-import type {Session, User} from "../generated/prisma/index.js";
-import type DataService from "../services/data-service.js";
-import type LoggerService from "../services/logger-service.js";
+import type {Session, User} from "../generated/prisma/index";
+import type DataService from "../services/data-service";
+import type LoggerService from "../services/logger-service";
 
 type SessionWithUser = Session & {user: User};
 

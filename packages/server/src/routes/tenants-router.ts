@@ -1,5 +1,5 @@
 import {Router} from "express";
-import type TenantController from "../controllers/tenant-controller.js";
+import type TenantController from "../controllers/tenant-controller";
 
 export function makeTenantsRouter(controller: TenantController) {
     const router = Router();

@@ -1,5 +1,5 @@
 import {Router, RequestHandler} from "express";
-import type AuthController from "../controllers/auth-controller.js";
+import type AuthController from "../controllers/auth-controller";
 
 export function makeAuthRouter(controller: AuthController, authenticate: RequestHandler) {
     const router = Router();

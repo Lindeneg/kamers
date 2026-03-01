@@ -1,6 +1,6 @@
 import z from "zod";
-import {HttpException} from "../lib/http-exception.js";
 import {success, failure, type Result} from "@kamers/shared";
+import {HttpException} from "../lib/http-exception";
 
 const DEFAULT_PARSE_ERROR = "An error occured.";
 

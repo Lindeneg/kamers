@@ -1,8 +1,8 @@
 import type {Request, Response, NextFunction} from "express";
 import type {ShipmentsResponse} from "@kamers/shared";
-import {HttpException} from "../lib/http-exception.js";
-import {parsePagination} from "../lib/pagination.js";
-import type ShipmentService from "../services/shipment-service.js";
+import {HttpException} from "../lib/http-exception";
+import {parsePagination} from "../lib/pagination";
+import type ShipmentService from "../services/shipment-service";
 
 class ShipmentsController {
     constructor(private readonly shipmentService: ShipmentService) {}

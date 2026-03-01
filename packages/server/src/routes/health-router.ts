@@ -1,5 +1,5 @@
 import {Router} from "express";
-import type DataService from "../services/data-service.js";
+import type DataService from "../services/data-service";
 
 export function makeHealthRouter(dataService: DataService) {
     const router = Router();

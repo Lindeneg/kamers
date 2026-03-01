@@ -4,7 +4,7 @@ import {
     type ShipmentsResponse,
     type PaginationParams,
 } from "@kamers/shared";
-import {paginate, toSkipTake} from "../lib/pagination.js";
+import {paginate, toSkipTake} from "../lib/pagination";
 
 const PORTS = [
     "Shanghai", "Rotterdam", "Busan", "Los Angeles", "Singapore",

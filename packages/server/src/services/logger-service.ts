@@ -1,7 +1,7 @@
 import pino, {type LogFn, type Logger} from "pino";
 import {pinoHttp} from "pino-http";
 import type {Request} from "express";
-import type EnvService from "./env-service.js";
+import type EnvService from "./env-service";
 
 class LoggerService {
     readonly #logger: Logger;

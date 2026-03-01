@@ -1,7 +1,7 @@
 import {success, failure, type Result} from "@kamers/shared";
-import type {Permission} from "../generated/prisma/index.js";
-import type DataService from "../services/data-service.js";
-import type LoggerService from "../services/logger-service.js";
+import type {Permission} from "../generated/prisma/index";
+import type DataService from "../services/data-service";
+import type LoggerService from "../services/logger-service";
 
 class PermissionRepository {
     constructor(

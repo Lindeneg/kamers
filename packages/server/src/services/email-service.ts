@@ -1,4 +1,4 @@
-import type LoggerService from "./logger-service.js";
+import type LoggerService from "./logger-service";
 
 class EmailService {
     constructor(

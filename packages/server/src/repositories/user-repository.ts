@@ -1,8 +1,8 @@
 import {success, failure, type Result, type MaybeNull} from "@kamers/shared";
-import type {User, UserPermission, Permission} from "../generated/prisma/index.js";
+import type {User, UserPermission, Permission} from "../generated/prisma/index";
 import type {SkipTake} from "../lib/pagination";
-import type DataService from "../services/data-service.js";
-import type LoggerService from "../services/logger-service.js";
+import type DataService from "../services/data-service";
+import type LoggerService from "../services/logger-service";
 
 export type UserWithPermissions = Omit<User, "passwordHash" | "inviteTokenExpiry"> & {
     userPermissions: (UserPermission & {permission: Permission})[];

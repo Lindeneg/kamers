@@ -1,7 +1,7 @@
 import {PrismaBetterSqlite3} from "@prisma/adapter-better-sqlite3";
 import {failure, success, type Result} from "@kamers/shared";
-import {PrismaClient} from "../generated/prisma/index.js";
-import type EnvService from "./env-service.js";
+import {PrismaClient} from "../generated/prisma/index";
+import type EnvService from "./env-service";
 
 const globalForPrisma = globalThis as unknown as {prisma?: PrismaClient};
 

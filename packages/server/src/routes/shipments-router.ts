@@ -1,7 +1,7 @@
 import {Router} from "express";
 import {PERMISSIONS} from "@kamers/shared";
-import type {CreateRequirePermission} from "../middleware/require-permission.js";
-import type ShipmentsController from "../controllers/shipments-controller.js";
+import type {CreateRequirePermission} from "../middleware/require-permission";
+import type ShipmentsController from "../controllers/shipments-controller";
 
 export function makeShipmentsRouter(
     controller: ShipmentsController,

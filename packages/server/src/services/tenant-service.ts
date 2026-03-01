@@ -1,11 +1,11 @@
 import {success, failure, type Result, type TenantsResponse, type PaginationParams} from "@kamers/shared";
-import {paginate, toSkipTake} from "../lib/pagination.js";
-import type TenantRepository from "../repositories/tenant-repository.js";
-import type UserRepository from "../repositories/user-repository.js";
-import type AuthService from "./auth-service.js";
-import type AuditLogRepository from "../repositories/audit-log-repository.js";
-import type DataService from "./data-service.js";
-import type EmailService from "./email-service.js";
+import {paginate, toSkipTake} from "../lib/pagination";
+import type TenantRepository from "../repositories/tenant-repository";
+import type UserRepository from "../repositories/user-repository";
+import type AuthService from "./auth-service";
+import type AuditLogRepository from "../repositories/audit-log-repository";
+import type DataService from "./data-service";
+import type EmailService from "./email-service";
 
 interface CreateTenantInput {
     name: string;

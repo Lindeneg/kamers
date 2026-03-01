@@ -6,12 +6,12 @@ import {
     type EmptyResult,
     type AuthResponse,
 } from "@kamers/shared";
-import type AuthService from "./auth-service.js";
-import type UserRepository from "../repositories/user-repository.js";
-import type SessionRepository from "../repositories/session-repository.js";
+import type AuthService from "./auth-service";
+import type UserRepository from "../repositories/user-repository";
+import type SessionRepository from "../repositories/session-repository";
 import type UserPermissionRepository from "../repositories/user-permission-repository";
-import type AuditLogRepository from "../repositories/audit-log-repository.js";
-import type DataService from "./data-service.js";
+import type AuditLogRepository from "../repositories/audit-log-repository";
+import type DataService from "./data-service";
 
 interface LoginInput {
     email: string;
