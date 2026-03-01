@@ -23,7 +23,11 @@
         "test": "npm run test -w packages/shared && npm run test -w packages/server && npm run test -w packages/client",
         "test:server": "npm run test -w packages/server",
         "test:client": "npm run test -w packages/client",
-        "test:shared": "npm run test -w packages/shared"
+        "test:shared": "npm run test -w packages/shared",
+        "clean:server": "rm -rf packages/server/node_modules packages/server/dist packages/server/data",
+        "clean:client": "rm -rf packages/client/node_modules packages/client/dist",
+        "clean:shared": "rm -rf packages/shared/node_modules packages/shared/dist",
+        "clean": "npm run clean:shared && npm run clean:client && npm run clean:server"
     },
     "devDependencies": {
         "@types/node": "25.3.0",
