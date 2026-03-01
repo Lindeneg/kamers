@@ -1,4 +1,5 @@
 import {execSync} from "node:child_process";
+import fs from "node:fs";
 import {loadEnv, unwrap} from "@kamers/shared";
 import EnvService from "../../services/env-service";
 import LoggerService from "../../services/logger-service";
@@ -117,8 +118,15 @@ export async function createTestApp(): Promise<TestApp> {
 
     const expressService = new ExpressService(env, log, globalErrorHandler, router);
 
+    const dbPath = env.databaseUrl.replace("file:", "");
+
     const teardown = async () => {
         await dataService.teardown();
+        try {
+            fs.unlinkSync(dbPath);
+        } catch {
+            // ignore if already deleted
+        }
     };
 
     return {app: expressService.app, dataService, authService, teardown};

@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 
+copy_env() {
+  local dest="$PWD/packages/$1/.env.development"
+  if [ -f "$dest" ]; then
+    echo "Skipping copy of $1, reusing existing file"
+  else
+    echo "Copying $1 into environment"
+    cp "$PWD/packages/$1/.env.example" "$dest"
+  fi
+}
+
 echo "bootstrapping local development environment"
+copy_env client
+copy_env server
 
 cp "$PWD/packages/client/.env.example" "$PWD/packages/client/.env.development"
+
 cp "$PWD/packages/server/.env.example" "$PWD/packages/server/.env.development"
 
 echo "installing node modules"

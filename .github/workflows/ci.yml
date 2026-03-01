@@ -25,7 +25,8 @@ jobs:
         run: npm run build:shared
 
       - name: Generate Prisma client
-        run: npm run db:generate
+        run: npx prisma generate --config prisma.config.test.ts
+        working-directory: packages/server
 
       - name: Build server
         run: npm run build:server
