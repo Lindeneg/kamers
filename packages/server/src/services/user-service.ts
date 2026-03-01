@@ -303,7 +303,7 @@ class UserService {
                     data: {
                         deletedAt: new Date(),
                         isActive: false,
-                        email: `deleted_${targetUserId}_${userResult.data.email}`,
+                        email: `deleted_${targetUserId}_${userResult.data?.email}`,
                     },
                 });
                 await tx.session.deleteMany({where: {userId: targetUserId}});
