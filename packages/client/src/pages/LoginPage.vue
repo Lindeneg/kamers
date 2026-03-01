@@ -35,7 +35,11 @@ async function handleSubmit() {
             <div class="login-brand">
                 <svg width="36" height="36" viewBox="0 0 28 28" fill="none">
                     <rect width="28" height="28" rx="6" fill="#42b0d5" />
-                    <path d="M7 10h14M7 14h10M7 18h14" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+                    <path
+                        d="M7 10h14M7 14h10M7 18h14"
+                        stroke="#fff"
+                        stroke-width="2"
+                        stroke-linecap="round" />
                 </svg>
                 <h1>Kamers</h1>
             </div>
