@@ -1,10 +1,11 @@
 import type {TenantsResponse, TenantDetail, PaginationParams} from "@kamers/shared";
 import api from "./client";
+import {wrap} from "./wrap";
 
 export type Tenant = TenantDetail;
 
 export function listTenants(params?: Partial<PaginationParams>) {
-    return api.get<TenantsResponse["list"]>("/tenants", {params});
+    return wrap(api.get<TenantsResponse["list"]>("/tenants", {params}));
 }
 
 export function createTenant(input: {
@@ -13,5 +14,5 @@ export function createTenant(input: {
     adminEmail: string;
     adminName: string;
 }) {
-    return api.post<TenantsResponse["create"]>("/tenants", input);
+    return wrap(api.post<TenantsResponse["create"]>("/tenants", input));
 }

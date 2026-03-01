@@ -1,4 +1,5 @@
 import {ref, type Ref} from "vue";
+import type {Result} from "@kamers/shared";
 
 interface UseApiCallReturn<T> {
     data: Ref<T | null>;
@@ -8,7 +9,7 @@ interface UseApiCallReturn<T> {
 }
 
 export function useApiCall<T>(
-    fn: (...args: any[]) => Promise<{data: T}>
+    fn: (...args: any[]) => Promise<Result<T>>
 ): UseApiCallReturn<T> {
     const data = ref<T | null>(null) as Ref<T | null>;
     const error = ref<string | null>(null);
@@ -17,16 +18,13 @@ export function useApiCall<T>(
     async function execute(...args: unknown[]): Promise<void> {
         loading.value = true;
         error.value = null;
-        try {
-            const res = await fn(...args);
-            data.value = res.data;
-        } catch (e: any) {
-            error.value =
-                e.response?.data?.msg ??
-                "Something went wrong. Please try again later.";
-        } finally {
-            loading.value = false;
+        const result = await fn(...args);
+        if (result.ok) {
+            data.value = result.data;
+        } else {
+            error.value = result.ctx;
         }
+        loading.value = false;
     }
 
     return {data, error, loading, execute};
