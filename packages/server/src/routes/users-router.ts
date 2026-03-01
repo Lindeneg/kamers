@@ -19,5 +19,11 @@ export function makeUsersRouter(
         controller.updatePermissions
     );
 
+    router.put(
+        "/:userId/transfer-ownership",
+        requirePermission(PERMISSIONS.USERS_WRITE),
+        controller.transferOwnership
+    );
+
     return router;
 }
