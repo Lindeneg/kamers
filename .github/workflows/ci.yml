@@ -32,7 +32,7 @@ jobs:
         run: npm run build:server
 
       - name: Build client
-        run: npm run build:client
+        run: npm run build:client -- -- -- -E example
 
       - name: Test shared
         run: npm run test:shared
