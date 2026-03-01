@@ -20,11 +20,7 @@ npm run db:generate -- -- --config prisma.config.dev.ts
 echo "seeding database"
 npm run db:seed -- -- -E development
 
-echo "building projects"
-npm run build:server && npm run build:client -- -- -- -E development
-
 echo "succesfully bootstrapped project"
-
 echo "npm run dev"
 echo "to start server and client"
 
