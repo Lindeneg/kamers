@@ -2,6 +2,8 @@
  * Permission constants used across client and server.
  * Format: "resource.action"
  */
+// TODO not great having this in code, rather have a db table and then an admin panel
+// so we can CRUD permissions without having to rebuild the project.
 export const PERMISSIONS = {
     SHIPMENTS_READ: "shipments.read",
     SHIPMENTS_WRITE: "shipments.write",
