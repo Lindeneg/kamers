@@ -17,6 +17,11 @@ export type AccessTokenPayload = {
     tenantId: string;
 };
 
+export type RefreshTokenPayload = {
+    sessionId: string;
+    userId: string;
+};
+
 class AuthService {
     constructor(
         private readonly env: EnvService,
@@ -58,6 +63,26 @@ class AuthService {
             return success(payload);
         } catch {
             return failure("invalid or expired access token");
+        }
+    }
+
+    generateRefreshToken(payload: RefreshTokenPayload): Result<string> {
+        try {
+            const token = jwt.sign(payload, this.env.jwtRefreshSecret, {
+                expiresIn: Math.floor(this.opts.refreshTokenExpiryMs / 1000),
+            });
+            return success(token);
+        } catch {
+            return failure("failed to generate refresh token");
+        }
+    }
+
+    verifyRefreshToken(token: string): Result<RefreshTokenPayload> {
+        try {
+            const payload = jwt.verify(token, this.env.jwtRefreshSecret) as RefreshTokenPayload;
+            return success(payload);
+        } catch {
+            return failure("invalid or expired refresh token");
         }
     }
 

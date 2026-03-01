@@ -82,16 +82,31 @@ class AuthSessionService {
         });
         if (!accessResult.ok) return failure(AuthSessionError.DB_ERROR);
 
-        const refreshToken = this.authService.generateOpaqueToken();
-
+        // Create session first to get the session ID for the JWT payload
+        const placeholderToken = "pending";
         const sessionResult = await this.sessionRepo.create({
             userId: user.id,
-            refreshToken,
+            refreshToken: placeholderToken,
             userAgent: ctx.userAgent,
             ipAddress: ctx.ipAddress,
             expiresAt: this.authService.getRefreshTokenExpiry(),
         });
         if (!sessionResult.ok) return failure(AuthSessionError.DB_ERROR);
+
+        const refreshResult = this.authService.generateRefreshToken({
+            sessionId: sessionResult.data.id,
+            userId: user.id,
+        });
+        if (!refreshResult.ok) {
+            await this.sessionRepo.deleteById(sessionResult.data.id);
+            return failure(AuthSessionError.DB_ERROR);
+        }
+
+        // Store the JWT in the session for reference/revocation
+        await this.dataService.p.session.update({
+            where: {id: sessionResult.data.id},
+            data: {refreshToken: refreshResult.data},
+        });
 
         await this.auditLogRepo.create({
             action: "login",
@@ -104,14 +119,17 @@ class AuthSessionService {
 
         return success({
             accessToken: accessResult.data,
-            refreshToken,
+            refreshToken: refreshResult.data,
         });
     }
 
     async logout(refreshToken: string | undefined, ctx: RequestContext): Promise<void> {
         if (!refreshToken) return;
 
-        const sessionResult = await this.sessionRepo.findByRefreshToken(refreshToken);
+        const verified = this.authService.verifyRefreshToken(refreshToken);
+        if (!verified.ok) return; // invalid signature — nothing to do
+
+        const sessionResult = await this.sessionRepo.findById(verified.data.sessionId);
         if (sessionResult.ok && sessionResult.data) {
             await this.sessionRepo.deleteById(sessionResult.data.id);
 
@@ -132,7 +150,12 @@ class AuthSessionService {
     ): Promise<Result<LoginResult, AuthSessionError>> {
         if (!refreshToken) return failure(AuthSessionError.NO_REFRESH_TOKEN);
 
-        const sessionResult = await this.sessionRepo.findByRefreshToken(refreshToken);
+        // Pre-validate signature before hitting DB
+        const verified = this.authService.verifyRefreshToken(refreshToken);
+        if (!verified.ok) return failure(AuthSessionError.SESSION_EXPIRED);
+
+        // Look up session by ID (from JWT payload) instead of scanning by token value
+        const sessionResult = await this.sessionRepo.findById(verified.data.sessionId);
         if (!sessionResult.ok) return failure(AuthSessionError.DB_ERROR);
 
         const session = sessionResult.data;
@@ -153,22 +176,29 @@ class AuthSessionService {
         });
         if (!accessResult.ok) return failure(AuthSessionError.DB_ERROR);
 
-        const newRefreshToken = this.authService.generateOpaqueToken();
-
         const newSessionResult = await this.sessionRepo.create({
             userId: user.id,
-            refreshToken: newRefreshToken,
+            refreshToken: "pending",
             userAgent: ctx.userAgent,
             ipAddress: ctx.ipAddress,
             expiresAt: this.authService.getRefreshTokenExpiry(),
         });
         if (!newSessionResult.ok) return failure(AuthSessionError.DB_ERROR);
 
+        const newRefreshResult = this.authService.generateRefreshToken({
+            sessionId: newSessionResult.data.id,
+            userId: user.id,
+        });
+        if (!newRefreshResult.ok) return failure(AuthSessionError.DB_ERROR);
+
+        await this.dataService.p.session.update({
+            where: {id: newSessionResult.data.id},
+            data: {refreshToken: newRefreshResult.data},
+        });
+
         return success({
             accessToken: accessResult.data,
-            refreshToken: newRefreshToken,
-            userId: user.id,
-            tenantId: user.tenantId,
+            refreshToken: newRefreshResult.data,
         });
     }
 
