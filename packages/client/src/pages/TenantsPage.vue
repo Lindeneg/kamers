@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import {ref, onMounted} from "vue";
-import type {Paginated} from "@kamers/shared";
-import {useApiCall} from "../composables/useApiCall";
-import {listTenants, createTenant, type Tenant} from "../api/tenants";
+import {ref} from "vue";
+import {useTenantsStore} from "../stores/tenants";
+import {usePaginatedResource} from "../composables/usePaginatedRoute";
+import {createTenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
 import BaseButton from "../components/base/BaseButton.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
 import BaseDialog from "../components/base/BaseDialog.vue";
 import FormInput from "../components/form/FormInput.vue";
+import PaginationControls from "../components/base/PaginationControls.vue";
 
 const columns: TableColumn[] = [
     {key: "name", label: "Organization"},
     {key: "domains", label: "Domains"},
 ];
 
-const {data: tenants, loading, error, execute: fetchTenants} = useApiCall<Paginated<Tenant>>(listTenants);
-
-onMounted(fetchTenants);
+const store = useTenantsStore();
+const {page, pageSize, onPageChange, onPageSizeChange, refetch} = usePaginatedResource(store);
 
 // Create tenant dialog
 const showCreate = ref(false);
@@ -59,7 +59,7 @@ async function handleCreate() {
     });
     if (result.ok) {
         createSuccess.value = {email: result.data.adminUser.email};
-        await fetchTenants();
+        refetch();
     } else {
         createError.value = result.ctx;
     }
@@ -87,26 +87,38 @@ function handleConfirm() {
             <BaseButton variant="secondary" @click="showCreate = true">Create tenant</BaseButton>
         </div>
 
-        <BaseAlert v-if="error" variant="error">{{ error }}</BaseAlert>
-        <BaseCard v-else>
-            <BaseTable
-                :columns="columns"
-                :rows="tenants?.data ?? []"
-                :loading="loading"
-                row-key="id">
-                <template #cell-name="{row}">
-                    <span class="cell-name">{{ row.name }}</span>
-                </template>
-                <template #cell-domains="{row}">
-                    <span
-                        v-for="d in row.domains"
-                        :key="d.id"
-                        class="domain-tag">
-                        {{ d.domain }}
-                    </span>
-                </template>
-            </BaseTable>
-        </BaseCard>
+        <BaseAlert v-if="store.error" variant="error">{{ store.error }}</BaseAlert>
+        <template v-else>
+            <PaginationControls
+                v-if="store.items && store.items.totalPages > 0"
+                :page="page"
+                :total-pages="store.items.totalPages"
+                :total="store.items.total"
+                :page-size="pageSize"
+                @update:page="onPageChange"
+                @update:page-size="onPageSizeChange">
+            <BaseCard>
+                <BaseTable
+                    :columns="columns"
+                    :rows="store.items?.data ?? []"
+                    :loading="store.loading"
+                    :expected-count="pageSize"
+                    row-key="id">
+                    <template #cell-name="{row}">
+                        <span class="cell-name">{{ row.name }}</span>
+                    </template>
+                    <template #cell-domains="{row}">
+                        <span
+                            v-for="d in row.domains"
+                            :key="d.id"
+                            class="domain-tag">
+                            {{ d.domain }}
+                        </span>
+                    </template>
+                </BaseTable>
+            </BaseCard>
+            </PaginationControls>
+        </template>
 
         <!-- Create tenant dialog -->
         <BaseDialog

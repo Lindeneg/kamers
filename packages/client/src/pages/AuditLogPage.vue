@@ -117,6 +117,9 @@ function openInspect(raw: string) {
                 </BaseTable>
             </BaseCard>
             </PaginationControls>
+            <BaseCard v-else-if="store.items && store.items.totalPages === 0">
+                <p class="empty-state">No audit logs found.</p>
+            </BaseCard>
         </template>
 
         <!-- Inspect details dialog -->
@@ -125,6 +128,7 @@ function openInspect(raw: string) {
             title="Inspect Details"
             confirm-label="Done"
             confirm-variant="secondary"
+            size="lg"
             @confirm="inspectDetails = null"
             @cancel="inspectDetails = null">
             <dl v-if="inspectDetails" class="inspect-list">
@@ -192,5 +196,12 @@ function openInspect(raw: string) {
     font-size: var(--font-size-sm);
     color: var(--color-neutral-weak-text);
     word-break: break-all;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+    color: var(--color-neutral-weak-text);
+    margin: 0;
 }
 </style>

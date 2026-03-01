@@ -1,5 +1,5 @@
 import {defineStore} from "pinia";
-import {inviteUser, updateUserPermissions, transferOwnership, listUsers, type User} from "../api/users";
+import {inviteUser, updateUserPermissions, transferOwnership, toggleUserActive, deleteUser, listUsers, type User} from "../api/users";
 import {usePaginatedStore} from "./paginated";
 
 export const useUsersStore = defineStore("users", () => {
@@ -30,5 +30,17 @@ export const useUsersStore = defineStore("users", () => {
         return result;
     }
 
-    return {...list, invite, updatePermissions, transfer};
+    async function toggleActive(userId: string, isActive: boolean) {
+        const result = await toggleUserActive(userId, isActive);
+        if (result.ok) list.invalidate();
+        return result;
+    }
+
+    async function remove(userId: string) {
+        const result = await deleteUser(userId);
+        if (result.ok) list.invalidate();
+        return result;
+    }
+
+    return {...list, invite, updatePermissions, transfer, toggleActive, remove};
 });

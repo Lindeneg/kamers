@@ -25,5 +25,17 @@ export function makeUsersRouter(
         controller.transferOwnership
     );
 
+    router.patch(
+        "/:userId/active",
+        requirePermission(PERMISSIONS.USERS_WRITE),
+        controller.toggleActive
+    );
+
+    router.delete(
+        "/:userId",
+        requirePermission(PERMISSIONS.USERS_WRITE),
+        controller.deleteUser
+    );
+
     return router;
 }

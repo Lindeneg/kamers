@@ -9,11 +9,13 @@ withDefaults(
         confirmLabel?: string;
         confirmVariant?: "danger" | "primary" | "secondary";
         loading?: boolean;
+        size?: "default" | "lg";
     }>(),
     {
         confirmLabel: "Confirm",
         confirmVariant: "danger",
         loading: false,
+        size: "default",
     }
 );
 
@@ -33,7 +35,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 <template>
     <Teleport to="body">
         <div v-if="open" class="dialog-backdrop" @click.self="emit('cancel')">
-            <div class="dialog" role="dialog" aria-modal="true">
+            <div class="dialog" :class="{['dialog--lg']: size === 'lg'}" role="dialog" aria-modal="true">
                 <h3 class="dialog__title">{{ title }}</h3>
                 <div class="dialog__body">
                     <slot />
@@ -72,6 +74,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
     padding: var(--space-6);
     max-width: 420px;
     width: calc(100% - var(--space-8));
+}
+
+.dialog--lg {
+    max-width: 640px;
 }
 
 .dialog__title {

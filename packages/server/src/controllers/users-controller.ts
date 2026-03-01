@@ -16,6 +16,10 @@ const updatePermissionsSchema = z.object({
     permissions: z.array(z.string().min(1)),
 });
 
+const toggleActiveSchema = z.object({
+    isActive: z.boolean(),
+});
+
 function mapUserError(error: UserError): HttpException {
     switch (error) {
         case UserError.EMAIL_TAKEN:
@@ -26,6 +30,8 @@ function mapUserError(error: UserError): HttpException {
             return HttpException.forbidden();
         case UserError.CANNOT_MODIFY_TENANT_ADMIN:
             return HttpException.forbidden(undefined, "Cannot modify tenant admin permissions");
+        case UserError.CANNOT_DELETE_ADMIN:
+            return HttpException.forbidden(undefined, "Cannot delete tenant admin");
         case UserError.CANNOT_MODIFY_SELF:
             return HttpException.forbidden(undefined, "Cannot modify your own permissions");
         case UserError.NOT_TENANT_ADMIN:
@@ -106,6 +112,41 @@ class UsersController {
         if (!result.ok) return next(mapUserError(result.ctx));
 
         res.json({msg: "ownership transferred"});
+    };
+
+    toggleActive = async (req: Request, res: Response<UsersResponse["toggleActive"]>, next: NextFunction) => {
+        if (!req.auth) return next(HttpException.unauthorized());
+
+        const userId = req.params.userId as string;
+        if (!userId) return next(HttpException.malformedBody());
+
+        const parsed = await parseRequestObj(req.body, toggleActiveSchema);
+        if (!parsed.ok) return next(parsed.ctx);
+
+        const result = await this.userService.toggleActive(userId, parsed.data.isActive, {
+            tenantId: req.auth.tenantId,
+            actingUserId: req.auth.userId,
+            ipAddress: req.ip,
+        });
+        if (!result.ok) return next(mapUserError(result.ctx));
+
+        res.json({msg: parsed.data.isActive ? "user activated" : "user deactivated"});
+    };
+
+    deleteUser = async (req: Request, res: Response<UsersResponse["deleteUser"]>, next: NextFunction) => {
+        if (!req.auth) return next(HttpException.unauthorized());
+
+        const userId = req.params.userId as string;
+        if (!userId) return next(HttpException.malformedBody());
+
+        const result = await this.userService.softDelete(userId, {
+            tenantId: req.auth.tenantId,
+            actingUserId: req.auth.userId,
+            ipAddress: req.ip,
+        });
+        if (!result.ok) return next(mapUserError(result.ctx));
+
+        res.json({msg: "user deleted"});
     };
 }
 

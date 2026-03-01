@@ -59,6 +59,7 @@ model User {
   isSuperAdmin  Boolean  @default(false)
   isTenantAdmin Boolean  @default(false)
   tenantId     String
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

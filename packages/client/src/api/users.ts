@@ -19,3 +19,11 @@ export function updateUserPermissions(userId: string, permissions: string[]) {
 export function transferOwnership(userId: string) {
     return wrap(api.put<UsersResponse["transferOwnership"]>(`/users/${userId}/transfer-ownership`));
 }
+
+export function toggleUserActive(userId: string, isActive: boolean) {
+    return wrap(api.patch<UsersResponse["toggleActive"]>(`/users/${userId}/active`, {isActive}));
+}
+
+export function deleteUser(userId: string) {
+    return wrap(api.delete<UsersResponse["deleteUser"]>(`/users/${userId}`));
+}

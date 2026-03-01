@@ -20,6 +20,7 @@
         "db:generate": "npm run db:generate -w packages/server",
         "db:seed": "npm run db:seed -w packages/server",
         "db:studio": "npm run db:studio -w packages/server",
+        "db:studio:dev": "npm run db:studio -- -- --config prisma.config.dev.ts",
         "test": "npm run test -w packages/shared && npm run test -w packages/server && npm run test -w packages/client",
         "test:server": "npm run test -w packages/server",
         "test:client": "npm run test -w packages/client",

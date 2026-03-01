@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from "vue";
+import {computed, ref} from "vue";
 import {useRouter} from "vue-router";
 import {PERMISSIONS} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
@@ -10,6 +10,10 @@ import BaseSpinner from "../components/base/BaseSpinner.vue";
 const auth = useAuthStore();
 const router = useRouter();
 const {isLoading} = useLoadingTracker();
+
+const navigating = ref(false);
+router.beforeEach(() => { navigating.value = true; });
+router.afterEach(() => { navigating.value = false; });
 
 interface NavItem {
     label: string;
@@ -83,7 +87,10 @@ function handleLogout() {
 
         <main class="main">
             <BaseSpinner v-if="isLoading" class="global-spinner" size="md" />
-            <div class="main-content">
+            <div v-if="navigating" class="nav-loading">
+                <BaseSpinner size="md" />
+            </div>
+            <div v-else class="main-content">
                 <RouterView />
             </div>
         </main>
@@ -235,6 +242,13 @@ function handleLogout() {
     bottom: var(--space-4);
     right: var(--space-4);
     z-index: 100;
+}
+
+.nav-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: var(--space-16, 4rem);
 }
 
 .main-content {

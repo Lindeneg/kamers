@@ -26,7 +26,7 @@ class UserRepository {
 
     async findByEmail(email: string): Promise<Result<MaybeNull<User>>> {
         try {
-            const user = await this.db.p.user.findUnique({where: {email}});
+            const user = await this.db.p.user.findFirst({where: {email, deletedAt: null}});
             return success(user);
         } catch (err) {
             this.log.error(err, "failed to find user by email");
@@ -39,14 +39,16 @@ class UserRepository {
         opts: Partial<SkipTake> = {}
     ): Promise<Result<{data: UserWithPermissions[]; total: number}>> {
         try {
+            const where = {tenantId, deletedAt: null};
             const [users, total] = await Promise.all([
                 this.db.p.user.findMany({
-                    where: {tenantId},
+                    where,
                     select: {
                         id: true,
                         email: true,
                         name: true,
                         isActive: true,
+                        deletedAt: true,
                         isSuperAdmin: true,
                         isTenantAdmin: true,
                         tenantId: true,
@@ -60,7 +62,7 @@ class UserRepository {
                     skip: opts.skip,
                     take: opts.take,
                 }),
-                this.db.p.user.count({where: {tenantId}}),
+                this.db.p.user.count({where}),
             ]);
             return success({data: users as UserWithPermissions[], total});
         } catch (err) {

@@ -70,6 +70,7 @@ async function handleInvite() {
 
 // Permissions editing dialog
 const showPermissions = ref(false);
+const readOnlyPermissions = ref(false);
 const editingUser = ref<User | null>(null);
 const selectedPermissions = ref<Permission[]>([]);
 const permissionsLoading = ref(false);
@@ -96,14 +97,24 @@ function togglePermission(perm: Permission) {
     }
 }
 
+function isPermissionsReadOnly(user: User): boolean {
+    return user.id === auth.user?.id || !!selectedTenantId.value || user.isTenantAdmin;
+}
+
 function openPermissionsDialog(user: User) {
     editingUser.value = user;
+    readOnlyPermissions.value = isPermissionsReadOnly(user);
     selectedPermissions.value = [...user.permissions];
     permissionsError.value = "";
     showPermissions.value = true;
 }
 
 async function handleUpdatePermissions() {
+    if (readOnlyPermissions.value) {
+        showPermissions.value = false;
+        editingUser.value = null;
+        return;
+    }
     if (!editingUser.value) return;
     permissionsError.value = "";
     permissionsLoading.value = true;
@@ -116,6 +127,42 @@ async function handleUpdatePermissions() {
         permissionsError.value = result.ctx;
     }
     permissionsLoading.value = false;
+}
+
+// Deactivate / Delete
+const toggleActiveLoading = ref(false);
+
+async function handleToggleActive(user: User) {
+    toggleActiveLoading.value = true;
+    await store.toggleActive(user.id, !user.isActive);
+    toggleActiveLoading.value = false;
+    refetch();
+}
+
+const showDelete = ref(false);
+const deleteTarget = ref<User | null>(null);
+const deleteLoading = ref(false);
+const deleteError = ref("");
+
+function openDeleteDialog(user: User) {
+    deleteTarget.value = user;
+    deleteError.value = "";
+    showDelete.value = true;
+}
+
+async function handleDelete() {
+    if (!deleteTarget.value) return;
+    deleteError.value = "";
+    deleteLoading.value = true;
+    const result = await store.remove(deleteTarget.value.id);
+    if (result.ok) {
+        showDelete.value = false;
+        deleteTarget.value = null;
+        refetch();
+    } else {
+        deleteError.value = result.ctx;
+    }
+    deleteLoading.value = false;
 }
 
 function formatAction(perm: string): string {
@@ -204,18 +251,34 @@ async function handleTransfer() {
                     <template #cell-actions="{row}">
                         <div class="actions">
                             <BaseButton
-                                v-if="!row.isTenantAdmin"
                                 variant="ghost"
                                 size="sm"
                                 @click="openPermissionsDialog(row)">
-                                Edit permissions
+                                {{ isPermissionsReadOnly(row) ? "View" : "Permissions" }}
                             </BaseButton>
                             <BaseButton
                                 v-if="isCurrentUserTenantAdmin && !row.isTenantAdmin && row.id !== auth.user?.id"
-                                variant="ghost"
+                                variant="secondary"
                                 size="sm"
                                 @click="openTransferDialog(row)">
-                                Transfer ownership
+                                Transfer
+                            </BaseButton>
+                            <BaseButton
+                                v-if="!row.isTenantAdmin && row.id !== auth.user?.id && !selectedTenantId"
+                                :class="row.isActive ? 'btn-deactivate' : 'btn-activate'"
+                                variant="ghost"
+                                size="sm"
+                                :loading="toggleActiveLoading"
+                                @click="handleToggleActive(row)">
+                                {{ row.isActive ? "Deactivate" : "Activate" }}
+                            </BaseButton>
+                            <BaseButton
+                                v-if="!row.isTenantAdmin && row.id !== auth.user?.id && !selectedTenantId"
+                                class="btn-delete"
+                                variant="ghost"
+                                size="sm"
+                                @click="openDeleteDialog(row)">
+                                Delete
                             </BaseButton>
                         </div>
                     </template>
@@ -245,21 +308,22 @@ async function handleTransfer() {
             </div>
         </BaseDialog>
 
-        <!-- Edit permissions dialog -->
+        <!-- Edit/View permissions dialog -->
         <BaseDialog
             :open="showPermissions"
-            title="Edit permissions"
-            confirm-label="Save"
-            confirm-variant="primary"
+            :title="readOnlyPermissions ? 'View permissions' : 'Edit permissions'"
+            :confirm-label="readOnlyPermissions ? 'Done' : 'Save'"
+            :confirm-variant="readOnlyPermissions ? 'secondary' : 'primary'"
             :loading="permissionsLoading"
             @confirm="handleUpdatePermissions"
             @cancel="showPermissions = false">
             <div class="dialog-fields">
                 <p v-if="editingUser" class="permissions-subtitle">
-                    Editing permissions for <strong>{{ editingUser.name }}</strong>
+                    {{ readOnlyPermissions ? "Permissions for" : "Editing permissions for" }}
+                    <strong>{{ editingUser.name }}</strong>
                 </p>
 
-                <label class="grant-all-option" @click.prevent="toggleAll">
+                <label v-if="!readOnlyPermissions" class="grant-all-option" @click.prevent="toggleAll">
                     <input type="checkbox" :checked="allSelected" @change="toggleAll" />
                     <span class="grant-all-label">Grant all permissions</span>
                 </label>
@@ -279,6 +343,7 @@ async function handleTransfer() {
                                 <input
                                     type="checkbox"
                                     :checked="selectedPermissions.includes(perm)"
+                                    :disabled="readOnlyPermissions"
                                     @change="togglePermission(perm)" />
                                 <span>{{ formatAction(perm) }}</span>
                             </label>
@@ -310,6 +375,27 @@ async function handleTransfer() {
                     You will lose your tenant admin status and cannot undo this action yourself.
                 </p>
                 <BaseAlert v-if="transferError" variant="error">{{ transferError }}</BaseAlert>
+            </div>
+        </BaseDialog>
+
+        <!-- Delete user dialog -->
+        <BaseDialog
+            :open="showDelete"
+            title="Delete user"
+            confirm-label="Delete"
+            confirm-variant="danger"
+            :loading="deleteLoading"
+            @confirm="handleDelete"
+            @cancel="showDelete = false">
+            <div class="dialog-fields">
+                <p>
+                    Are you sure you want to delete
+                    <strong>{{ deleteTarget?.name }}</strong>?
+                </p>
+                <p class="transfer-warning">
+                    This user will be deactivated and removed from the users list. They will no longer be able to log in.
+                </p>
+                <BaseAlert v-if="deleteError" variant="error">{{ deleteError }}</BaseAlert>
             </div>
         </BaseDialog>
     </div>
@@ -371,6 +457,34 @@ async function handleTransfer() {
     display: flex;
     gap: var(--space-2);
     justify-content: flex-end;
+    align-items: center;
+}
+
+.btn-activate {
+    color: var(--color-success);
+    border-color: var(--color-success);
+}
+
+.btn-activate:hover:not(:disabled) {
+    background: var(--color-success-weak-bg);
+}
+
+.btn-deactivate {
+    color: var(--color-warning-text);
+    border-color: var(--color-warning-text);
+}
+
+.btn-deactivate:hover:not(:disabled) {
+    background: var(--color-warning-weak-bg);
+}
+
+.btn-delete {
+    color: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.btn-delete:hover:not(:disabled) {
+    background: var(--color-error-weak-bg);
 }
 
 .dialog-fields {

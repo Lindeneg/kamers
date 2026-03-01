@@ -65,6 +65,7 @@ export interface UserDetail {
     email: string;
     name: string;
     isActive: boolean;
+    isDeleted: boolean;
     isSuperAdmin: boolean;
     isTenantAdmin: boolean;
     tenantId: string;
@@ -82,6 +83,8 @@ export type UsersResponse = {
     };
     updatePermissions: BasePayload;
     transferOwnership: BasePayload;
+    toggleActive: BasePayload;
+    deleteUser: BasePayload;
 };
 
 export interface AuditLogEntry {

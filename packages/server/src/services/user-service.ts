@@ -50,6 +50,7 @@ export const UserError = {
     USER_NOT_FOUND: "user_not_found",
     CROSS_TENANT: "cross_tenant",
     CANNOT_MODIFY_TENANT_ADMIN: "cannot_modify_tenant_admin",
+    CANNOT_DELETE_ADMIN: "cannot_delete_admin",
     CANNOT_MODIFY_SELF: "cannot_modify_self",
     NOT_TENANT_ADMIN: "not_tenant_admin",
     DB_ERROR: "db_error",
@@ -87,6 +88,7 @@ class UserService {
             email: u.email,
             name: u.name,
             isActive: u.isActive,
+            isDeleted: u.deletedAt !== null,
             isSuperAdmin: u.isSuperAdmin,
             isTenantAdmin: u.isTenantAdmin,
             tenantId: u.tenantId,
@@ -127,7 +129,7 @@ class UserService {
                 action: "invite_user",
                 entity: "user",
                 entityId: user.id,
-                details: JSON.stringify({email}),
+                details: JSON.stringify({email, name}),
                 tenantId: ctx.tenantId,
                 userId: ctx.userId,
                 ipAddress: ctx.ipAddress,
@@ -172,7 +174,11 @@ class UserService {
             action: "update_user_permissions",
             entity: "user",
             entityId: input.userId,
-            details: JSON.stringify({permissions: input.permissions}),
+            details: JSON.stringify({
+                targetEmail: userResult.data.email,
+                targetName: userResult.data.name,
+                permissions: input.permissions,
+            }),
             tenantId: ctx.tenantId,
             userId: ctx.actingUserId,
             ipAddress: ctx.ipAddress,
@@ -198,16 +204,25 @@ class UserService {
         if (targetResult.data.tenantId !== ctx.tenantId) return failure(UserError.CROSS_TENANT);
 
         try {
-            await this.dataService.p.$transaction([
-                this.dataService.p.user.update({
+            await this.dataService.p.$transaction(async (tx) => {
+                await tx.user.update({
                     where: {id: ctx.actingUserId},
                     data: {isTenantAdmin: false},
-                }),
-                this.dataService.p.user.update({
+                });
+                await tx.user.update({
                     where: {id: targetUserId},
                     data: {isTenantAdmin: true},
-                }),
-            ]);
+                });
+
+                const allPerms = await tx.permission.findMany();
+                for (const perm of allPerms) {
+                    await tx.userPermission.upsert({
+                        where: {userId_permissionId: {userId: targetUserId, permissionId: perm.id}},
+                        update: {},
+                        create: {userId: targetUserId, permissionId: perm.id},
+                    });
+                }
+            });
         } catch {
             return failure(UserError.DB_ERROR);
         }
@@ -216,7 +231,92 @@ class UserService {
             action: "transfer_ownership",
             entity: "user",
             entityId: targetUserId,
-            details: JSON.stringify({from: ctx.actingUserId, to: targetUserId}),
+            details: JSON.stringify({
+                fromEmail: actingResult.data.email,
+                fromName: actingResult.data.name,
+                toEmail: targetResult.data.email,
+                toName: targetResult.data.name,
+            }),
+            tenantId: ctx.tenantId,
+            userId: ctx.actingUserId,
+            ipAddress: ctx.ipAddress,
+        });
+
+        return emptySuccess();
+    }
+
+    async toggleActive(
+        targetUserId: string,
+        isActive: boolean,
+        ctx: UpdatePermissionsContext
+    ): Promise<EmptyResult<UserError>> {
+        if (targetUserId === ctx.actingUserId) {
+            return failure(UserError.CANNOT_MODIFY_SELF);
+        }
+
+        const userResult = await this.userRepo.findById(targetUserId);
+        if (!userResult.ok) return failure(UserError.DB_ERROR);
+        if (!userResult.data) return failure(UserError.USER_NOT_FOUND);
+        if (userResult.data.tenantId !== ctx.tenantId) return failure(UserError.CROSS_TENANT);
+        if (userResult.data.isTenantAdmin) return failure(UserError.CANNOT_MODIFY_TENANT_ADMIN);
+
+        try {
+            await this.dataService.p.user.update({
+                where: {id: targetUserId},
+                data: {isActive},
+            });
+        } catch {
+            return failure(UserError.DB_ERROR);
+        }
+
+        await this.auditLogRepo.create({
+            action: isActive ? "activate_user" : "deactivate_user",
+            entity: "user",
+            entityId: targetUserId,
+            details: JSON.stringify({email: userResult.data.email, name: userResult.data.name}),
+            tenantId: ctx.tenantId,
+            userId: ctx.actingUserId,
+            ipAddress: ctx.ipAddress,
+        });
+
+        return emptySuccess();
+    }
+
+    async softDelete(
+        targetUserId: string,
+        ctx: UpdatePermissionsContext
+    ): Promise<EmptyResult<UserError>> {
+        if (targetUserId === ctx.actingUserId) {
+            return failure(UserError.CANNOT_MODIFY_SELF);
+        }
+
+        const userResult = await this.userRepo.findById(targetUserId);
+        if (!userResult.ok) return failure(UserError.DB_ERROR);
+        if (!userResult.data) return failure(UserError.USER_NOT_FOUND);
+        if (userResult.data.tenantId !== ctx.tenantId) return failure(UserError.CROSS_TENANT);
+        if (userResult.data.isTenantAdmin) return failure(UserError.CANNOT_DELETE_ADMIN);
+
+        try {
+            await this.dataService.p.$transaction(async (tx) => {
+                await tx.user.update({
+                    where: {id: targetUserId},
+                    data: {
+                        deletedAt: new Date(),
+                        isActive: false,
+                        email: `deleted_${targetUserId}_${userResult.data.email}`,
+                    },
+                });
+                await tx.session.deleteMany({where: {userId: targetUserId}});
+            });
+        } catch {
+            return failure(UserError.DB_ERROR);
+        }
+
+        await this.auditLogRepo.create({
+            action: "delete_user",
+            entity: "user",
+            entityId: targetUserId,
+            details: JSON.stringify({email: userResult.data.email, name: userResult.data.name}),
             tenantId: ctx.tenantId,
             userId: ctx.actingUserId,
             ipAddress: ctx.ipAddress,
