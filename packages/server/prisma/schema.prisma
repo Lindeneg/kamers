@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Multi-tenancy ──────────────────────────────────────────────────────────────
+// A tenant represents an organization (e.g. "Foo Incorporated"). All data in the
+// system is scoped by tenantId — users, roles, audit logs. This is the root of
+// our multi-tenant isolation: every query that touches tenant-owned data must
+// filter by tenantId to prevent cross-tenant data leaks.
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  domains   TenantDomain[]
+  users     User[]
+  auditLogs AuditLog[]
+}
+
+// Maps email domains to tenants. A tenant can own multiple domains (e.g.
+// "fooinc.com" and "fooinc.co.uk" both map to the same tenant). Used during
+// login and invite to resolve which tenant a user belongs to based on their
+// email address. The domain column is unique — two tenants cannot claim the
+// same domain.
+
+model TenantDomain {
+  id       String @id @default(cuid())
+  domain   String @unique
+  tenantId String
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+// ─── Users & Authentication ─────────────────────────────────────────────────────
+// Users are always scoped to a tenant. passwordHash is nullable because newly
+// invited users haven't set a password yet — they do so via a magic link.
+//
+// isSuperAdmin is a system-level flag for the app creator who can create tenants
+// and assign initial admins. This is NOT a tenant-level role — it's a global
+// privilege outside the RBAC system.
+//
+// inviteToken / inviteTokenExpiry: when a user is invited, we generate a one-time
+// token sent via email. The user follows the link, sets their password, and the
+// token is cleared. The expiry prevents stale invites from being used indefinitely.
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  isActive     Boolean  @default(true)
+  isSuperAdmin Boolean  @default(false)
+  tenantId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  userPermissions UserPermission[]
+  sessions        Session[]
+
+  inviteToken       String?   @unique
+  inviteTokenExpiry DateTime?
+
+  auditLogs AuditLog[]
+}
+
+// ─── Sessions ───────────────────────────────────────────────────────────────────
+// Each row represents an active session (one per device/browser). Storing the
+// refresh token server-side enables:
+//
+// 1. Token rotation — on refresh, the old token is replaced (not reused)
+// 2. Centralized invalidation — delete the row and the user is logged out
+// 3. Multi-device support — one user can have many concurrent sessions
+// 4. Theft detection — if a deleted/rotated token is reused, it signals compromise
+//
+// userAgent and ipAddress are captured for observability and incident response
+// ("which session was compromised? from where?").
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Permissions ─────────────────────────────────────────────────────────────────
+// Direct user-to-permission assignment. Simpler than RBAC — no roles layer.
+// Each user gets permissions assigned directly via the UserPermission join table.
+//
+// Permissions are global (not tenant-scoped). They represent system capabilities
+// like "shipments.read" or "users.write". The slug is the canonical identifier
+// used in backend middleware checks and frontend route guards.
+
+model Permission {
+  id   String @id @default(cuid())
+  slug String @unique
+
+  userPermissions UserPermission[]
+}
+
+// ─── Join Table ─────────────────────────────────────────────────────────────────
+// Direct many-to-many between User and Permission. Composite primary key prevents
+// duplicate assignments. Cascade delete on both FKs ensures cleanup.
+
+model UserPermission {
+  userId       String
+  permissionId String
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+}
+
+// ─── Audit Logging ──────────────────────────────────────────────────────────────
+// Records who did what, in which tenant, and when. Serves three purposes:
+// - Security audits ("who changed permissions last Tuesday?")
+// - Incident response ("what happened leading up to the breach?")
+// - Compliance (immutable trail of data mutations)
+//
+// userId is nullable to support system-level actions (e.g. automated cleanup,
+// scheduled jobs). details stores action-specific context as a JSON string.
+//
+// Indexes:
+// - [tenantId, createdAt] — efficient tenant-scoped time-range queries
+// - [userId] — "show me everything this user did" lookups
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  userId    String?
+  tenantId  String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user   User?  @relation(fields: [userId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([userId])
+}

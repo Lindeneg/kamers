@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+echo "bootstrapping local development environment"
+
+cp "$PWD/packages/client/.env.example" "$PWD/packages/client/.env.development"
+cp "$PWD/packages/server/.env.example" "$PWD/packages/server/.env.development"
+
+echo "installing node modules"
+npm i
+
+echo "building shared package"
+npm run build:shared
+
+echo "migrating database"
+npm run db:migrate -- -- --config prisma.config.dev.ts
+
+echo "generating prisma client"
+npm run db:generate -- -- --config prisma.config.dev.ts
+
+echo "seeding database"
+npm run db:seed -- -- -E development
+
+echo "building projects"
+npm run build:server && npm run build:client -- -- -- -E development
+
+echo "succesfully bootstrapped project"
+
+echo "npm run dev"
+echo "to start server and client"
+
+exit 0
