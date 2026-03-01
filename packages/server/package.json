@@ -9,7 +9,8 @@
         "db:migrate": "prisma migrate dev",
         "db:generate": "prisma generate",
         "db:seed": "tsx prisma/seed.ts",
-        "db:studio": "prisma studio"
+        "db:studio": "prisma studio",
+        "test": "vitest run"
     },
     "dependencies": {
         "@kamers/shared": "*",
@@ -32,7 +33,10 @@
         "@types/cors": "2.8.19",
         "@types/express": "5.0.6",
         "@types/jsonwebtoken": "9.0.10",
+        "@types/supertest": "^7.2.0",
         "prisma": "7.4.1",
-        "tsx": "4.21.0"
+        "supertest": "^7.2.2",
+        "tsx": "4.21.0",
+        "vitest": "^4.0.18"
     }
 }

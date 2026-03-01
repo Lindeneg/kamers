@@ -9,7 +9,7 @@ class LoggerService {
     constructor(env: EnvService) {
         this.#logger = pino({
             // TODO get from environment
-            level: env.prod ? "info" : "debug",
+            level: env.test ? "silent" : env.prod ? "info" : "debug",
             transport: {
                 target: "pino-pretty",
                 options: {

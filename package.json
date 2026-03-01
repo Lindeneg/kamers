@@ -19,10 +19,15 @@
         "db:migrate": "npm run db:migrate -w packages/server",
         "db:generate": "npm run db:generate -w packages/server",
         "db:seed": "npm run db:seed -w packages/server",
-        "db:studio": "npm run db:studio -w packages/server"
+        "db:studio": "npm run db:studio -w packages/server",
+        "test": "npm run test -w packages/shared && npm run test -w packages/server && npm run test -w packages/client",
+        "test:server": "npm run test -w packages/server",
+        "test:client": "npm run test -w packages/client",
+        "test:shared": "npm run test -w packages/shared"
     },
     "devDependencies": {
         "@types/node": "25.3.0",
-        "typescript": "5.9.3"
+        "typescript": "5.9.3",
+        "vitest": "^4.0.18"
     }
 }
