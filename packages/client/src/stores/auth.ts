@@ -1,6 +1,6 @@
 import {defineStore} from "pinia";
 import {ref, computed} from "vue";
-import {hasPermission, hasAllPermissions, type Permission, type MaybeNull} from "@kamers/shared";
+import {hasPermission, hasAllPermissions, emptySuccess, type Permission, type MaybeNull, type EmptyResult} from "@kamers/shared";
 import * as authApi from "../api/auth";
 import type {MeResponse} from "../api/auth";
 
@@ -17,9 +17,11 @@ export const useAuthStore = defineStore("auth", () => {
         return hasPermission(permissions.value, permission);
     }
 
-    async function login(email: string, password: string): Promise<void> {
-        await authApi.login(email, password);
+    async function login(email: string, password: string): Promise<EmptyResult> {
+        const result = await authApi.login(email, password);
+        if (!result.ok) return result;
         await fetchMe();
+        return emptySuccess();
     }
 
     async function logout(): Promise<void> {
@@ -29,14 +31,9 @@ export const useAuthStore = defineStore("auth", () => {
 
     async function fetchMe(): Promise<void> {
         loading.value = true;
-        try {
-            const res = await authApi.getMe();
-            user.value = res.data;
-        } catch {
-            user.value = null;
-        } finally {
-            loading.value = false;
-        }
+        const result = await authApi.getMe();
+        user.value = result.ok ? result.data : null;
+        loading.value = false;
     }
 
     return {user, loading, isAuthenticated, permissions, isSuperAdmin, can, login, logout, fetchMe};
