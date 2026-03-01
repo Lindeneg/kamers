@@ -24,6 +24,12 @@ function mapUserError(error: UserError): HttpException {
             return HttpException.notFound();
         case UserError.CROSS_TENANT:
             return HttpException.forbidden();
+        case UserError.CANNOT_MODIFY_TENANT_ADMIN:
+            return HttpException.forbidden(undefined, "Cannot modify tenant admin permissions");
+        case UserError.CANNOT_MODIFY_SELF:
+            return HttpException.forbidden(undefined, "Cannot modify your own permissions");
+        case UserError.NOT_TENANT_ADMIN:
+            return HttpException.forbidden(undefined, "Only the tenant admin can transfer ownership");
         case UserError.DB_ERROR:
             return HttpException.internal();
     }
@@ -36,7 +42,13 @@ class UsersController {
         if (!req.auth) return next(HttpException.unauthorized());
 
         const pagination = parsePagination(req);
-        const result = await this.userService.listByTenant(req.auth.tenantId, pagination);
+        const queryTenantId = req.query.tenantId as string | undefined;
+        const result = await this.userService.listByTenant(
+            req.auth.tenantId,
+            queryTenantId,
+            req.auth.userId,
+            pagination
+        );
         if (!result.ok) return next(mapUserError(result.ctx));
 
         res.json(result.data);
@@ -78,6 +90,22 @@ class UsersController {
         if (!result.ok) return next(mapUserError(result.ctx));
 
         res.json({msg: "permissions updated"});
+    };
+
+    transferOwnership = async (req: Request, res: Response<UsersResponse["transferOwnership"]>, next: NextFunction) => {
+        if (!req.auth) return next(HttpException.unauthorized());
+
+        const userId = req.params.userId as string;
+        if (!userId) return next(HttpException.malformedBody());
+
+        const result = await this.userService.transferOwnership(userId, {
+            tenantId: req.auth.tenantId,
+            actingUserId: req.auth.userId,
+            ipAddress: req.ip,
+        });
+        if (!result.ok) return next(mapUserError(result.ctx));
+
+        res.json({msg: "ownership transferred"});
     };
 }
 

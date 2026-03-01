@@ -42,6 +42,7 @@ class UserRepository {
                         name: true,
                         isActive: true,
                         isSuperAdmin: true,
+                        isTenantAdmin: true,
                         tenantId: true,
                         inviteToken: true,
                         createdAt: true,

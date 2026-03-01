@@ -24,6 +24,18 @@ class SessionRepository {
         }
     }
 
+    async findById(id: string): Promise<Result<MaybeNull<SessionWithUser>>> {
+        try {
+            const session = await this.db.p.session.findUnique({
+                where: {id},
+                include: {user: true},
+            });
+            return success(session);
+        } catch {
+            return failure("failed to find session by id");
+        }
+    }
+
     async findByRefreshToken(refreshToken: string): Promise<Result<MaybeNull<SessionWithUser>>> {
         try {
             const session = await this.db.p.session.findUnique({
