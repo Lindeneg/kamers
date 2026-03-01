@@ -51,20 +51,19 @@ async function handleCreate() {
     }
 
     createLoading.value = true;
-    try {
-        const res = await createTenant({
-            name: tenantName.value,
-            domains,
-            adminEmail: adminEmail.value,
-            adminName: adminName.value,
-        });
-        createSuccess.value = {email: res.data.adminUser.email};
+    const result = await createTenant({
+        name: tenantName.value,
+        domains,
+        adminEmail: adminEmail.value,
+        adminName: adminName.value,
+    });
+    if (result.ok) {
+        createSuccess.value = {email: result.data.adminUser.email};
         await fetchTenants();
-    } catch (e: any) {
-        createError.value = e.response?.data?.msg ?? "Failed to create tenant";
-    } finally {
-        createLoading.value = false;
+    } else {
+        createError.value = result.ctx;
     }
+    createLoading.value = false;
 }
 
 function closeCreate() {

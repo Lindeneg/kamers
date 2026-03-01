@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import {watch} from "vue";
-import type {Paginated} from "@kamers/shared";
-import {useApiCall} from "../composables/useApiCall";
-import {usePagination} from "../composables/usePagination";
-import {listShipments, type Shipment} from "../api/shipments";
+import {onMounted} from "vue";
+import {useShipmentsStore} from "../stores/shipments";
+import {usePaginatedRoute} from "../composables/usePaginatedRoute";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
@@ -16,18 +14,15 @@ const columns: TableColumn[] = [
     {key: "status", label: "Status"},
 ];
 
-const pag = usePagination();
+const pag = usePaginatedRoute();
+const store = useShipmentsStore();
 
-const {data: shipments, loading, error, execute: fetchShipments} = useApiCall<Paginated<Shipment>>(
-    () => listShipments(pag.params.value)
-);
+onMounted(() => store.fetch({page: pag.page.value, pageSize: pag.pageSize.value}));
 
-async function fetch() {
-    await fetchShipments();
-    if (shipments.value) pag.setFromResponse(shipments.value);
+function onPageChange(p: number) {
+    pag.setPage(p);
+    store.fetch({page: p, pageSize: pag.pageSize.value});
 }
-
-watch(pag.params, fetch, {immediate: true});
 </script>
 
 <template>
@@ -36,11 +31,11 @@ watch(pag.params, fetch, {immediate: true});
             <h1>Shipments</h1>
         </div>
 
-        <div v-if="loading" class="empty-state">Loading...</div>
-        <BaseAlert v-else-if="error" variant="error">{{ error }}</BaseAlert>
-        <template v-else-if="shipments?.data.length">
+        <div v-if="store.loading" class="empty-state">Loading...</div>
+        <BaseAlert v-else-if="store.error" variant="error">{{ store.error }}</BaseAlert>
+        <template v-else-if="store.items?.data.length">
             <BaseCard>
-                <BaseTable :columns="columns" :rows="(shipments.data as unknown as Record<string, unknown>[])" row-key="id">
+                <BaseTable :columns="columns" :rows="(store.items.data as unknown as Record<string, unknown>[])" row-key="id">
                     <template #cell-id="{value}">
                         <span class="cell-mono">{{ value }}</span>
                     </template>
@@ -53,10 +48,11 @@ watch(pag.params, fetch, {immediate: true});
             </BaseCard>
 
             <PaginationControls
-                v-model:page="pag.page.value"
-                v-model:page-size="pag.pageSize.value"
-                :total-pages="pag.totalPages.value"
-                :total="pag.total.value" />
+                :page="pag.page.value"
+                :total-pages="store.items.totalPages"
+                :total="store.items.total"
+                :page-size="pag.pageSize.value"
+                @update:page="onPageChange" />
         </template>
         <div v-else class="empty-state">No shipments found.</div>
     </div>

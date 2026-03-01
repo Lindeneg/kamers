@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import {ref, computed, onMounted, watch} from "vue";
+import {ref, computed, onMounted} from "vue";
 import {PERMISSIONS, type Permission, type Paginated} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
+import {useUsersStore} from "../stores/users";
 import {useApiCall} from "../composables/useApiCall";
-import {usePagination} from "../composables/usePagination";
-import {listUsers, inviteUser, updateUserPermissions, transferOwnership, type User} from "../api/users";
+import {usePaginatedRoute} from "../composables/usePaginatedRoute";
+import type {User} from "../api/users";
 import {listTenants, type Tenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
@@ -16,9 +17,10 @@ import FormSelect from "../components/form/FormSelect.vue";
 import PaginationControls from "../components/base/PaginationControls.vue";
 
 const auth = useAuthStore();
+const store = useUsersStore();
+const pag = usePaginatedRoute();
 const allPermissions = Object.values(PERMISSIONS);
 
-// Group permissions by resource (e.g. "shipments" -> ["shipments.read", "shipments.write"])
 const permissionGroups = computed(() => {
     const groups: Record<string, Permission[]> = {};
     for (const perm of allPermissions) {
@@ -37,15 +39,7 @@ const columns: TableColumn[] = [
     {key: "actions", label: ""},
 ];
 
-const selectedTenantId = ref("");
-const pag = usePagination();
-
-const {data: users, loading, error, execute: fetchUsers} = useApiCall<Paginated<User>>(
-    () => listUsers({
-        ...pag.params.value,
-        ...(selectedTenantId.value && {tenantId: selectedTenantId.value}),
-    })
-);
+const selectedTenantId = computed(() => pag.getFilter("tenantId"));
 
 const {data: tenants, execute: fetchTenants} = useApiCall<Paginated<Tenant>>(listTenants);
 
@@ -53,23 +47,32 @@ const tenantOptions = computed(() =>
     (tenants.value?.data ?? []).map((t) => ({value: t.id, label: t.name}))
 );
 
-async function fetch() {
-    await fetchUsers();
-    if (users.value) pag.setFromResponse(users.value);
+function buildParams() {
+    return {
+        page: pag.page.value,
+        pageSize: pag.pageSize.value,
+        ...(selectedTenantId.value && {tenantId: selectedTenantId.value}),
+    };
 }
 
 onMounted(() => {
     if (auth.isSuperAdmin) fetchTenants();
+    store.fetch(buildParams());
 });
 
-watch(selectedTenantId, () => {
-    pag.resetPage();
-});
+function onPageChange(p: number) {
+    pag.setPage(p);
+    store.fetch({...buildParams(), page: p});
+}
 
-watch([pag.params, selectedTenantId], fetch, {immediate: true});
+function onTenantChange(tenantId: string) {
+    pag.setFilter("tenantId", tenantId);
+    store.invalidate();
+    store.fetch({page: 1, pageSize: pag.pageSize.value, ...(tenantId && {tenantId})});
+}
 
 const isCurrentUserTenantAdmin = computed(() =>
-    users.value?.data.some((u) => u.id === auth.user?.id && u.isTenantAdmin) ?? false
+    store.items?.data.some((u) => u.id === auth.user?.id && u.isTenantAdmin) ?? false
 );
 
 // Invite dialog
@@ -82,17 +85,16 @@ const inviteError = ref("");
 async function handleInvite() {
     inviteError.value = "";
     inviteLoading.value = true;
-    try {
-        await inviteUser(inviteEmail.value, inviteName.value);
+    const result = await store.invite(inviteEmail.value, inviteName.value);
+    if (result.ok) {
         showInvite.value = false;
         inviteEmail.value = "";
         inviteName.value = "";
-        await fetch();
-    } catch (e: any) {
-        inviteError.value = e.response?.data?.msg ?? "Failed to invite user";
-    } finally {
-        inviteLoading.value = false;
+        store.fetch(buildParams());
+    } else {
+        inviteError.value = result.ctx;
     }
+    inviteLoading.value = false;
 }
 
 // Permissions editing dialog
@@ -134,16 +136,15 @@ async function handleUpdatePermissions() {
     if (!editingUser.value) return;
     permissionsError.value = "";
     permissionsLoading.value = true;
-    try {
-        await updateUserPermissions(editingUser.value.id, selectedPermissions.value);
+    const result = await store.updatePermissions(editingUser.value.id, selectedPermissions.value);
+    if (result.ok) {
         showPermissions.value = false;
         editingUser.value = null;
-        await fetch();
-    } catch (e: any) {
-        permissionsError.value = e.response?.data?.msg ?? "Failed to update permissions";
-    } finally {
-        permissionsLoading.value = false;
+        store.fetch(buildParams());
+    } else {
+        permissionsError.value = result.ctx;
     }
+    permissionsLoading.value = false;
 }
 
 function formatAction(perm: string): string {
@@ -166,17 +167,16 @@ async function handleTransfer() {
     if (!transferTarget.value) return;
     transferError.value = "";
     transferLoading.value = true;
-    try {
-        await transferOwnership(transferTarget.value.id);
+    const result = await store.transfer(transferTarget.value.id);
+    if (result.ok) {
         showTransfer.value = false;
         transferTarget.value = null;
-        await fetch();
+        store.fetch(buildParams());
         await auth.fetchMe();
-    } catch (e: any) {
-        transferError.value = e.response?.data?.msg ?? "Failed to transfer ownership";
-    } finally {
-        transferLoading.value = false;
+    } else {
+        transferError.value = result.ctx;
     }
+    transferLoading.value = false;
 }
 </script>
 
@@ -190,19 +190,20 @@ async function handleTransfer() {
         <div v-if="auth.isSuperAdmin && tenantOptions.length" class="tenant-filter">
             <FormSelect
                 id="tenant-select"
-                v-model="selectedTenantId"
+                :model-value="selectedTenantId"
                 label="Tenant"
                 :options="tenantOptions"
-                placeholder="Your tenant" />
+                placeholder="Your tenant"
+                @update:model-value="onTenantChange" />
         </div>
 
-        <div v-if="loading" class="empty-state">Loading...</div>
-        <BaseAlert v-else-if="error" variant="error">{{ error }}</BaseAlert>
-        <template v-else-if="users?.data.length">
+        <div v-if="store.loading" class="empty-state">Loading...</div>
+        <BaseAlert v-else-if="store.error" variant="error">{{ store.error }}</BaseAlert>
+        <template v-else-if="store.items?.data.length">
             <BaseCard>
                 <BaseTable
                     :columns="columns"
-                    :rows="users.data as unknown as Record<string, unknown>[]"
+                    :rows="store.items.data as unknown as Record<string, unknown>[]"
                     row-key="id">
                     <template #cell-name="{row}">
                         <span class="cell-name">{{ (row as unknown as User).name }}</span>
@@ -248,10 +249,11 @@ async function handleTransfer() {
             </BaseCard>
 
             <PaginationControls
-                v-model:page="pag.page.value"
-                v-model:page-size="pag.pageSize.value"
-                :total-pages="pag.totalPages.value"
-                :total="pag.total.value" />
+                :page="pag.page.value"
+                :total-pages="store.items.totalPages"
+                :total="store.items.total"
+                :page-size="pag.pageSize.value"
+                @update:page="onPageChange" />
         </template>
         <div v-else class="empty-state">No users found.</div>
 

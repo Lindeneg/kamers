@@ -18,15 +18,14 @@ const submitting = ref(false);
 async function handleSubmit() {
     error.value = "";
     submitting.value = true;
-    try {
-        await auth.login(email.value, password.value);
+    const result = await auth.login(email.value, password.value);
+    if (result.ok) {
         const redirect = (route.query.redirect as string) || "/";
         router.push(redirect);
-    } catch (e: any) {
-        error.value = e.response?.data?.msg ?? "Something went wrong. Please try again later.";
-    } finally {
-        submitting.value = false;
+    } else {
+        error.value = result.ctx;
     }
+    submitting.value = false;
 }
 </script>
 

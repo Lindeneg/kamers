@@ -24,14 +24,13 @@ async function handleSubmit() {
 
     error.value = "";
     submitting.value = true;
-    try {
-        await setPassword(token, password.value);
+    const result = await setPassword(token, password.value);
+    if (result.ok) {
         done.value = true;
-    } catch (e: any) {
-        error.value = e.response?.data?.msg ?? "Something went wrong. Please try again later.";
-    } finally {
-        submitting.value = false;
+    } else {
+        error.value = result.ctx;
     }
+    submitting.value = false;
 }
 
 function goToLogin() {
