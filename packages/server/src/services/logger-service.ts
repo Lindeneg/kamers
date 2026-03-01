@@ -53,7 +53,6 @@ class LoggerService {
             },
             customErrorMessage: (req, res, err) => {
                 const r = req as Request;
-                r.auth?.userId;
                 const user = r.auth?.userId ? ` user=${r.auth.userId}` : "";
                 const tenant = r.auth?.tenantId ? ` tenant=${r.auth.tenantId}` : "";
                 return `${req.id} ${req.method} ${req.url} ${res.statusCode}${user}${tenant} ${err.message}`;

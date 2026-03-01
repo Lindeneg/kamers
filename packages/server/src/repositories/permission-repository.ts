@@ -1,28 +1,13 @@
 import {success, failure, type Result} from "@kamers/shared";
 import type {Permission} from "../generated/prisma/index.js";
 import type DataService from "../services/data-service.js";
+import type LoggerService from "../services/logger-service.js";
 
 class PermissionRepository {
-    constructor(private readonly db: DataService) {}
-
-    async findAll(): Promise<Result<Permission[]>> {
-        try {
-            const permissions = await this.db.p.permission.findMany();
-            return success(permissions);
-        } catch {
-            return failure("failed to find permissions");
-        }
-    }
-
-    async findBySlug(slug: string): Promise<Result<Permission>> {
-        try {
-            const permission = await this.db.p.permission.findUnique({
-                where: {slug},
-            });
-            if (permission) return success(permission);
-        } catch {}
-        return failure("failed to find permission by slug");
-    }
+    constructor(
+        private readonly db: DataService,
+        private readonly log: LoggerService
+    ) {}
 
     async findBySlugs(slugs: string[]): Promise<Result<Permission[]>> {
         try {
@@ -30,7 +15,8 @@ class PermissionRepository {
                 where: {slug: {in: slugs}},
             });
             return success(permissions);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to find permissions by slugs");
             return failure("failed to find permissions by slugs");
         }
     }

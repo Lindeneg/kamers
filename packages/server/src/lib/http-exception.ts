@@ -4,6 +4,7 @@ export const RESPONSE_MESSAGES = {
     malformedBody: "The requested action could not be exercised due to malformed syntax.",
     unauthorized:
         "The provided credentials are either invalid or has insufficient privilege to perform the requested action.",
+    forbidden: "You do not have permission to perform this action.",
     notFound: "The requested resource could not be found.",
     illegalMethod: "The requested action is made using an illegal method.",
     unprocessable:
@@ -39,7 +40,7 @@ export class HttpException extends Error {
     }
 
     public static forbidden(details?: unknown, message?: string) {
-        return new HttpException(message ?? RESPONSE_MESSAGES.unauthorized, 403, details);
+        return new HttpException(message ?? RESPONSE_MESSAGES.forbidden, 403, details);
     }
 
     public static notFound(details?: unknown, message?: string) {

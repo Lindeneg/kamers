@@ -2,11 +2,15 @@ import {success, failure, type Result, type MaybeNull} from "@kamers/shared";
 import type {Tenant, TenantDomain} from "../generated/prisma/index.js";
 import type {SkipTake} from "../lib/pagination";
 import type DataService from "../services/data-service.js";
+import type LoggerService from "../services/logger-service.js";
 
 type TenantWithDomains = Tenant & {domains: TenantDomain[]};
 
 class TenantRepository {
-    constructor(private readonly db: DataService) {}
+    constructor(
+        private readonly db: DataService,
+        private readonly log: LoggerService
+    ) {}
 
     async findById(id: string): Promise<Result<MaybeNull<TenantWithDomains>>> {
         try {
@@ -16,6 +20,7 @@ class TenantRepository {
             });
             return success(tenant);
         } catch (err) {
+            this.log.error(err, "failed to find tenant by id");
             return failure("failed to find tenant by id");
         }
     }
@@ -28,6 +33,7 @@ class TenantRepository {
             });
             return success(tenant);
         } catch (err) {
+            this.log.error(err, "failed to find tenant by domain");
             return failure("failed to find tenant by domain");
         }
     }
@@ -45,6 +51,7 @@ class TenantRepository {
             });
             return success(tenant);
         } catch (err) {
+            this.log.error(err, "failed to create tenant");
             return failure("failed to create tenant");
         }
     }
@@ -63,6 +70,7 @@ class TenantRepository {
             ]);
             return success({data: tenants, total});
         } catch (err) {
+            this.log.error(err, "failed to find tenants");
             return failure("failed to find tenants");
         }
     }

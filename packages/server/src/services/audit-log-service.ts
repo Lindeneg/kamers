@@ -1,5 +1,6 @@
 import {success, failure, type Result, type AuditLogsResponse, type PaginationParams} from "@kamers/shared";
 import {paginate, toSkipTake} from "../lib/pagination";
+import {resolveTenantId} from "../lib/cross-tenant";
 import type AuditLogRepository from "../repositories/audit-log-repository";
 import type UserRepository from "../repositories/user-repository";
 
@@ -22,14 +23,13 @@ class AuditLogService {
         actingUserId: string,
         pagination: PaginationParams
     ): Promise<Result<AuditLogsResponse["list"], AuditLogError>> {
-        const targetTenantId = queryTenantId ?? tenantId;
-        if (targetTenantId !== tenantId) {
-            const userResult = await this.userRepo.findById(actingUserId);
-            if (!userResult.ok) return failure(AuditLogError.DB_ERROR);
-            if (!userResult.data?.isSuperAdmin) return failure(AuditLogError.FORBIDDEN);
-        }
+        const resolved = await resolveTenantId(this.userRepo, actingUserId, tenantId, queryTenantId, {
+            dbError: AuditLogError.DB_ERROR,
+            forbidden: AuditLogError.FORBIDDEN,
+        });
+        if (!resolved.ok) return failure(resolved.ctx);
 
-        const result = await this.auditLogRepo.findByTenantId(targetTenantId, toSkipTake(pagination));
+        const result = await this.auditLogRepo.findByTenantId(resolved.data, toSkipTake(pagination));
         if (!result.ok) return failure(AuditLogError.DB_ERROR);
 
         const mapped = result.data.data.map((log) => ({

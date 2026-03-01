@@ -13,8 +13,6 @@ export function makeShipmentsRouter(
 
     router.get("/", requirePermission(PERMISSIONS.SHIPMENTS_READ), controller.list);
 
-    router.get("/:id", requirePermission(PERMISSIONS.SHIPMENTS_READ), controller.getById);
-
     router.post("/", requirePermission(PERMISSIONS.SHIPMENTS_WRITE), controller.create);
 
     return router;

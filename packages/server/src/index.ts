@@ -35,19 +35,23 @@ async function main(args: string[] | undefined) {
 
     const dataService = new DataService(env);
 
-    const tenantRepo = new TenantRepository(dataService);
-    const userRepo = new UserRepository(dataService);
-    const permissionRepo = new PermissionRepository(dataService);
-    const sessionRepo = new SessionRepository(dataService);
-    const auditLogRepo = new AuditLogRepository(dataService);
-    const userPermissionRepo = new UserPermissionRepository(dataService);
+    const tenantRepo = new TenantRepository(dataService, log);
+    const userRepo = new UserRepository(dataService, log);
+    const permissionRepo = new PermissionRepository(dataService, log);
+    const sessionRepo = new SessionRepository(dataService, log);
+    const auditLogRepo = new AuditLogRepository(dataService, log);
+    const userPermissionRepo = new UserPermissionRepository(dataService, log);
 
-    const authService = new AuthService(env, {
-        saltRounds: 12,
-        accessTokenExpiryMs: 15 * 60 * 1000, // 15 minutes
-        refreshTokenExpiryMs: 7 * 24 * 60 * 60 * 1000, // 7 days
-        inviteTokenExpiryMs: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    const authService = new AuthService(
+        env,
+        {
+            saltRounds: 12,
+            accessTokenExpiryMs: 15 * 60 * 1000, // 15 minutes
+            refreshTokenExpiryMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+            inviteTokenExpiryMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+        },
+        log
+    );
 
     const emailService = new EmailService(log, env.clientUrl);
 
@@ -110,6 +114,7 @@ async function main(args: string[] | undefined) {
     // ── Graceful shutdown ────────────────────────────────────────
     const shutdown = async (signal: string) => {
         log.info(`received ${signal}, shutting down...`);
+        await dataService.teardown();
         process.exit(0);
     };
 

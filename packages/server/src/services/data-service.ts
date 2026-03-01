@@ -34,6 +34,7 @@ class DataService {
             await this.p.$queryRaw`SELECT 1`;
             return success(0);
         } catch (err) {
+            console.error("database health check failed", err);
             return failure("database health check failed");
         }
     }

@@ -1,8 +1,6 @@
 import {
     success,
-    failure,
     type Result,
-    type Shipment,
     type ShipmentsResponse,
     type PaginationParams,
 } from "@kamers/shared";
@@ -44,12 +42,6 @@ class ShipmentService {
         const {skip, take} = toSkipTake(pagination);
         const sliced = all.slice(skip, skip + take);
         return success(paginate(sliced, all.length, pagination));
-    }
-
-    async getById(id: string, tenantId: string): Promise<Result<ShipmentsResponse["getById"]>> {
-        const shipment = STUB_SHIPMENTS.find((s) => s.id === id);
-        if (!shipment) return failure("shipment not found");
-        return success({...shipment, tenantId});
     }
 
     async create(

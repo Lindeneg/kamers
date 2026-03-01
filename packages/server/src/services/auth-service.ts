@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import type {Response} from "express";
 import {success, failure, type Result} from "@kamers/shared";
 import type EnvService from "./env-service";
+import type LoggerService from "./logger-service";
 
 export interface AuthServiceOpts {
     saltRounds: number;
@@ -25,14 +26,16 @@ export type RefreshTokenPayload = {
 class AuthService {
     constructor(
         private readonly env: EnvService,
-        private readonly opts: AuthServiceOpts
+        private readonly opts: AuthServiceOpts,
+        private readonly log: LoggerService
     ) {}
 
     async hashPassword(password: string): Promise<Result<string>> {
         try {
             const hash = await bcrypt.hash(password, this.opts.saltRounds);
             return success(hash);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to hash password");
             return failure("failed to hash password");
         }
     }
@@ -41,7 +44,8 @@ class AuthService {
         try {
             const match = await bcrypt.compare(password, hash);
             return success(match);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to compare password");
             return failure("failed to compare password");
         }
     }
@@ -52,7 +56,8 @@ class AuthService {
                 expiresIn: Math.floor(this.opts.accessTokenExpiryMs / 1000),
             });
             return success(token);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to generate access token");
             return failure("failed to generate access token");
         }
     }
@@ -61,7 +66,8 @@ class AuthService {
         try {
             const payload = jwt.verify(token, this.env.jwtAccessSecret) as AccessTokenPayload;
             return success(payload);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "invalid or expired access token");
             return failure("invalid or expired access token");
         }
     }
@@ -72,7 +78,8 @@ class AuthService {
                 expiresIn: Math.floor(this.opts.refreshTokenExpiryMs / 1000),
             });
             return success(token);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to generate refresh token");
             return failure("failed to generate refresh token");
         }
     }
@@ -81,7 +88,8 @@ class AuthService {
         try {
             const payload = jwt.verify(token, this.env.jwtRefreshSecret) as RefreshTokenPayload;
             return success(payload);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "invalid or expired refresh token");
             return failure("invalid or expired refresh token");
         }
     }

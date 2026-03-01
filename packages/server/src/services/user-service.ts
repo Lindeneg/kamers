@@ -9,6 +9,7 @@ import {
     type Permission,
 } from "@kamers/shared";
 import {paginate, toSkipTake} from "../lib/pagination";
+import {resolveTenantId} from "../lib/cross-tenant";
 import type AuthService from "./auth-service";
 import type UserRepository from "../repositories/user-repository";
 import type UserPermissionRepository from "../repositories/user-permission-repository";
@@ -72,14 +73,13 @@ class UserService {
         actingUserId: string,
         pagination: PaginationParams
     ): Promise<Result<UsersResponse["list"], UserError>> {
-        const targetTenantId = queryTenantId ?? tenantId;
-        if (targetTenantId !== tenantId) {
-            const actingUser = await this.userRepo.findById(actingUserId);
-            if (!actingUser.ok) return failure(UserError.DB_ERROR);
-            if (!actingUser.data?.isSuperAdmin) return failure(UserError.CROSS_TENANT);
-        }
+        const resolved = await resolveTenantId(this.userRepo, actingUserId, tenantId, queryTenantId, {
+            dbError: UserError.DB_ERROR,
+            forbidden: UserError.CROSS_TENANT,
+        });
+        if (!resolved.ok) return failure(resolved.ctx);
 
-        const usersResult = await this.userRepo.findByTenantId(targetTenantId, toSkipTake(pagination));
+        const usersResult = await this.userRepo.findByTenantId(resolved.data, toSkipTake(pagination));
         if (!usersResult.ok) return failure(UserError.DB_ERROR);
 
         const mapped = usersResult.data.data.map((u) => ({

@@ -82,45 +82,48 @@ class AuthSessionService {
         });
         if (!accessResult.ok) return failure(AuthSessionError.DB_ERROR);
 
-        // Create session first to get the session ID for the JWT payload
-        const placeholderToken = "pending";
-        const sessionResult = await this.sessionRepo.create({
-            userId: user.id,
-            refreshToken: placeholderToken,
-            userAgent: ctx.userAgent,
-            ipAddress: ctx.ipAddress,
-            expiresAt: this.authService.getRefreshTokenExpiry(),
-        });
-        if (!sessionResult.ok) return failure(AuthSessionError.DB_ERROR);
+        try {
+            const {refreshToken} = await this.dataService.p.$transaction(async (tx) => {
+                const s = await tx.session.create({
+                    data: {
+                        userId: user.id,
+                        refreshToken: "pending",
+                        userAgent: ctx.userAgent,
+                        ipAddress: ctx.ipAddress,
+                        expiresAt: this.authService.getRefreshTokenExpiry(),
+                    },
+                });
 
-        const refreshResult = this.authService.generateRefreshToken({
-            sessionId: sessionResult.data.id,
-            userId: user.id,
-        });
-        if (!refreshResult.ok) {
-            await this.sessionRepo.deleteById(sessionResult.data.id);
+                const tokenResult = this.authService.generateRefreshToken({
+                    sessionId: s.id,
+                    userId: user.id,
+                });
+                if (!tokenResult.ok) throw new Error("token_generation_failed");
+
+                await tx.session.update({
+                    where: {id: s.id},
+                    data: {refreshToken: tokenResult.data},
+                });
+
+                return {session: s, refreshToken: tokenResult.data};
+            });
+
+            await this.auditLogRepo.create({
+                action: "login",
+                entity: "user",
+                entityId: user.id,
+                tenantId: user.tenantId,
+                userId: user.id,
+                ipAddress: ctx.ipAddress,
+            });
+
+            return success({
+                accessToken: accessResult.data,
+                refreshToken,
+            });
+        } catch {
             return failure(AuthSessionError.DB_ERROR);
         }
-
-        // Store the JWT in the session for reference/revocation
-        await this.dataService.p.session.update({
-            where: {id: sessionResult.data.id},
-            data: {refreshToken: refreshResult.data},
-        });
-
-        await this.auditLogRepo.create({
-            action: "login",
-            entity: "user",
-            entityId: user.id,
-            tenantId: user.tenantId,
-            userId: user.id,
-            ipAddress: ctx.ipAddress,
-        });
-
-        return success({
-            accessToken: accessResult.data,
-            refreshToken: refreshResult.data,
-        });
     }
 
     async logout(refreshToken: string | undefined, ctx: RequestContext): Promise<void> {
@@ -168,38 +171,49 @@ class AuthSessionService {
         const user = session.user;
         if (!user.isActive) return failure(AuthSessionError.USER_INACTIVE);
 
-        await this.sessionRepo.deleteById(session.id);
-
         const accessResult = this.authService.generateAccessToken({
             userId: user.id,
             tenantId: user.tenantId,
         });
         if (!accessResult.ok) return failure(AuthSessionError.DB_ERROR);
 
-        const newSessionResult = await this.sessionRepo.create({
-            userId: user.id,
-            refreshToken: "pending",
-            userAgent: ctx.userAgent,
-            ipAddress: ctx.ipAddress,
-            expiresAt: this.authService.getRefreshTokenExpiry(),
-        });
-        if (!newSessionResult.ok) return failure(AuthSessionError.DB_ERROR);
+        try {
+            const {refreshToken: newRefreshToken} = await this.dataService.p.$transaction(
+                async (tx) => {
+                    await tx.session.delete({where: {id: session.id}});
 
-        const newRefreshResult = this.authService.generateRefreshToken({
-            sessionId: newSessionResult.data.id,
-            userId: user.id,
-        });
-        if (!newRefreshResult.ok) return failure(AuthSessionError.DB_ERROR);
+                    const newSession = await tx.session.create({
+                        data: {
+                            userId: user.id,
+                            refreshToken: "pending",
+                            userAgent: ctx.userAgent,
+                            ipAddress: ctx.ipAddress,
+                            expiresAt: this.authService.getRefreshTokenExpiry(),
+                        },
+                    });
 
-        await this.dataService.p.session.update({
-            where: {id: newSessionResult.data.id},
-            data: {refreshToken: newRefreshResult.data},
-        });
+                    const tokenResult = this.authService.generateRefreshToken({
+                        sessionId: newSession.id,
+                        userId: user.id,
+                    });
+                    if (!tokenResult.ok) throw new Error("token_generation_failed");
 
-        return success({
-            accessToken: accessResult.data,
-            refreshToken: newRefreshResult.data,
-        });
+                    await tx.session.update({
+                        where: {id: newSession.id},
+                        data: {refreshToken: tokenResult.data},
+                    });
+
+                    return {refreshToken: tokenResult.data};
+                }
+            );
+
+            return success({
+                accessToken: accessResult.data,
+                refreshToken: newRefreshToken,
+            });
+        } catch {
+            return failure(AuthSessionError.DB_ERROR);
+        }
     }
 
     async getMe(userId: string): Promise<Result<MeResult, AuthSessionError>> {
@@ -240,18 +254,11 @@ class AuthSessionService {
         const hashResult = await this.authService.hashPassword(password);
         if (!hashResult.ok) return failure(AuthSessionError.DB_ERROR);
 
-        // Atomic: update password + clear invite token
         try {
-            await this.dataService.p.$transaction([
-                this.dataService.p.user.update({
-                    where: {id: user.id},
-                    data: {passwordHash: hashResult.data},
-                }),
-                this.dataService.p.user.update({
-                    where: {id: user.id},
-                    data: {inviteToken: null, inviteTokenExpiry: null},
-                }),
-            ]);
+            await this.dataService.p.user.update({
+                where: {id: user.id},
+                data: {passwordHash: hashResult.data, inviteToken: null, inviteTokenExpiry: null},
+            });
         } catch {
             return failure(AuthSessionError.DB_ERROR);
         }

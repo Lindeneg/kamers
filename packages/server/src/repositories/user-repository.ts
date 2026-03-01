@@ -1,20 +1,25 @@
-import {success, failure, type Result, type MaybeNull, type RawModel} from "@kamers/shared";
+import {success, failure, type Result, type MaybeNull} from "@kamers/shared";
 import type {User, UserPermission, Permission} from "../generated/prisma/index.js";
 import type {SkipTake} from "../lib/pagination";
 import type DataService from "../services/data-service.js";
+import type LoggerService from "../services/logger-service.js";
 
 export type UserWithPermissions = Omit<User, "passwordHash" | "inviteTokenExpiry"> & {
     userPermissions: (UserPermission & {permission: Permission})[];
 };
 
 class UserRepository {
-    constructor(private readonly db: DataService) {}
+    constructor(
+        private readonly db: DataService,
+        private readonly log: LoggerService
+    ) {}
 
     async findById(id: string): Promise<Result<MaybeNull<User>>> {
         try {
             const user = await this.db.p.user.findUnique({where: {id}});
             return success(user);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to find user by id");
             return failure("failed to find user by id");
         }
     }
@@ -23,7 +28,8 @@ class UserRepository {
         try {
             const user = await this.db.p.user.findUnique({where: {email}});
             return success(user);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to find user by email");
             return failure("failed to find user by email");
         }
     }
@@ -57,29 +63,9 @@ class UserRepository {
                 this.db.p.user.count({where: {tenantId}}),
             ]);
             return success({data: users as UserWithPermissions[], total});
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to find users by tenant");
             return failure("failed to find users by tenant");
-        }
-    }
-
-    async create(data: RawModel<User>): Promise<Result<User>> {
-        try {
-            const user = await this.db.p.user.create({data});
-            return success(user);
-        } catch {
-            return failure("failed to create user");
-        }
-    }
-
-    async updatePassword(id: string, passwordHash: string): Promise<Result<User>> {
-        try {
-            const user = await this.db.p.user.update({
-                where: {id},
-                data: {passwordHash},
-            });
-            return success(user);
-        } catch {
-            return failure("failed to update password");
         }
     }
 
@@ -89,34 +75,12 @@ class UserRepository {
                 where: {inviteToken: token},
             });
             return success(user);
-        } catch {
+        } catch (err) {
+            this.log.error(err, "failed to find user by invite token");
             return failure("failed to find user by invite token");
         }
     }
 
-    async clearInviteToken(id: string): Promise<Result<User>> {
-        try {
-            const user = await this.db.p.user.update({
-                where: {id},
-                data: {inviteToken: null, inviteTokenExpiry: null},
-            });
-            return success(user);
-        } catch {
-            return failure("failed to clear invite token");
-        }
-    }
-
-    async setInviteToken(id: string, token: string, expiry: Date): Promise<Result<User>> {
-        try {
-            const user = await this.db.p.user.update({
-                where: {id},
-                data: {inviteToken: token, inviteTokenExpiry: expiry},
-            });
-            return success(user);
-        } catch {
-            return failure("failed to set invite token");
-        }
-    }
 }
 
 export default UserRepository;

@@ -17,18 +17,6 @@ class ShipmentsController {
         res.json(result.data);
     };
 
-    getById = async (req: Request, res: Response<ShipmentsResponse["getById"]>, next: NextFunction) => {
-        if (!req.auth) return next(HttpException.unauthorized());
-
-        const result = await this.shipmentService.getById(
-            req.params.id as string,
-            req.auth.tenantId
-        );
-        if (!result.ok) return next(HttpException.notFound());
-
-        res.json(result.data);
-    };
-
     create = async (req: Request, res: Response<ShipmentsResponse["create"]>, next: NextFunction) => {
         if (!req.auth) return next(HttpException.unauthorized());
 
