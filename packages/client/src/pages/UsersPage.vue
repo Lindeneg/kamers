@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import {ref, computed, onMounted} from "vue";
+import {ref, computed, onMounted, watch} from "vue";
 import {PERMISSIONS, type Permission, type Paginated} from "@kamers/shared";
+import {useAuthStore} from "../stores/auth";
 import {useApiCall} from "../composables/useApiCall";
-import {listUsers, inviteUser, updateUserPermissions, type User} from "../api/users";
+import {usePagination} from "../composables/usePagination";
+import {listUsers, inviteUser, updateUserPermissions, transferOwnership, type User} from "../api/users";
+import {listTenants, type Tenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
 import BaseButton from "../components/base/BaseButton.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
 import BaseDialog from "../components/base/BaseDialog.vue";
 import FormInput from "../components/form/FormInput.vue";
+import FormSelect from "../components/form/FormSelect.vue";
+import PaginationControls from "../components/base/PaginationControls.vue";
 
+const auth = useAuthStore();
 const allPermissions = Object.values(PERMISSIONS);
 
 // Group permissions by resource (e.g. "shipments" -> ["shipments.read", "shipments.write"])
@@ -31,9 +37,40 @@ const columns: TableColumn[] = [
     {key: "actions", label: ""},
 ];
 
-const {data: users, loading, error, execute: fetchUsers} = useApiCall<Paginated<User>>(listUsers);
+const selectedTenantId = ref("");
+const pag = usePagination();
 
-onMounted(fetchUsers);
+const {data: users, loading, error, execute: fetchUsers} = useApiCall<Paginated<User>>(
+    () => listUsers({
+        ...pag.params.value,
+        ...(selectedTenantId.value && {tenantId: selectedTenantId.value}),
+    })
+);
+
+const {data: tenants, execute: fetchTenants} = useApiCall<Paginated<Tenant>>(listTenants);
+
+const tenantOptions = computed(() =>
+    (tenants.value?.data ?? []).map((t) => ({value: t.id, label: t.name}))
+);
+
+async function fetch() {
+    await fetchUsers();
+    if (users.value) pag.setFromResponse(users.value);
+}
+
+onMounted(() => {
+    if (auth.isSuperAdmin) fetchTenants();
+});
+
+watch(selectedTenantId, () => {
+    pag.resetPage();
+});
+
+watch([pag.params, selectedTenantId], fetch, {immediate: true});
+
+const isCurrentUserTenantAdmin = computed(() =>
+    users.value?.data.some((u) => u.id === auth.user?.id && u.isTenantAdmin) ?? false
+);
 
 // Invite dialog
 const showInvite = ref(false);
@@ -50,7 +87,7 @@ async function handleInvite() {
         showInvite.value = false;
         inviteEmail.value = "";
         inviteName.value = "";
-        await fetchUsers();
+        await fetch();
     } catch (e: any) {
         inviteError.value = e.response?.data?.msg ?? "Failed to invite user";
     } finally {
@@ -101,7 +138,7 @@ async function handleUpdatePermissions() {
         await updateUserPermissions(editingUser.value.id, selectedPermissions.value);
         showPermissions.value = false;
         editingUser.value = null;
-        await fetchUsers();
+        await fetch();
     } catch (e: any) {
         permissionsError.value = e.response?.data?.msg ?? "Failed to update permissions";
     } finally {
@@ -113,17 +150,33 @@ function formatAction(perm: string): string {
     return perm.split(".")[1]!;
 }
 
-// Copy invite link
-const copiedUserId = ref<string | null>(null);
+// Transfer ownership
+const showTransfer = ref(false);
+const transferTarget = ref<User | null>(null);
+const transferLoading = ref(false);
+const transferError = ref("");
 
-async function copyInviteLink(user: User) {
-    if (!user.inviteLink) return;
-    const url = `${window.location.origin}${user.inviteLink}`;
-    await navigator.clipboard.writeText(url);
-    copiedUserId.value = user.id;
-    setTimeout(() => {
-        copiedUserId.value = null;
-    }, 2000);
+function openTransferDialog(user: User) {
+    transferTarget.value = user;
+    transferError.value = "";
+    showTransfer.value = true;
+}
+
+async function handleTransfer() {
+    if (!transferTarget.value) return;
+    transferError.value = "";
+    transferLoading.value = true;
+    try {
+        await transferOwnership(transferTarget.value.id);
+        showTransfer.value = false;
+        transferTarget.value = null;
+        await fetch();
+        await auth.fetchMe();
+    } catch (e: any) {
+        transferError.value = e.response?.data?.msg ?? "Failed to transfer ownership";
+    } finally {
+        transferLoading.value = false;
+    }
 }
 </script>
 
@@ -134,56 +187,72 @@ async function copyInviteLink(user: User) {
             <BaseButton variant="secondary" @click="showInvite = true">Invite user</BaseButton>
         </div>
 
+        <div v-if="auth.isSuperAdmin && tenantOptions.length" class="tenant-filter">
+            <FormSelect
+                id="tenant-select"
+                v-model="selectedTenantId"
+                label="Tenant"
+                :options="tenantOptions"
+                placeholder="Your tenant" />
+        </div>
+
         <div v-if="loading" class="empty-state">Loading...</div>
         <BaseAlert v-else-if="error" variant="error">{{ error }}</BaseAlert>
-        <BaseCard v-else-if="users?.data.length">
-            <BaseTable
-                :columns="columns"
-                :rows="users.data as unknown as Record<string, unknown>[]"
-                row-key="id">
-                <template #cell-name="{row}">
-                    <span class="cell-name">{{ (row as unknown as User).name }}</span>
-                </template>
-                <template #cell-status="{row}">
-                    <span v-if="(row as unknown as User).hasPendingInvite" class="badge pending">
-                        Pending
-                    </span>
-                    <span
-                        v-else
-                        class="badge"
-                        :class="{
-                            active: (row as unknown as User).isActive,
-                            inactive: !(row as unknown as User).isActive,
-                        }">
-                        {{ (row as unknown as User).isActive ? "Active" : "Inactive" }}
-                    </span>
-                </template>
-                <template #cell-actions="{row}">
-                    <div class="actions">
-                        <BaseButton
-                            v-if="
-                                (row as unknown as User).hasPendingInvite &&
-                                (row as unknown as User).inviteLink
-                            "
-                            variant="ghost"
-                            size="sm"
-                            @click="copyInviteLink(row as unknown as User)">
-                            {{
-                                copiedUserId === (row as unknown as User).id
-                                    ? "Copied!"
-                                    : "Copy link"
-                            }}
-                        </BaseButton>
-                        <BaseButton
-                            variant="ghost"
-                            size="sm"
-                            @click="openPermissionsDialog(row as unknown as User)">
-                            Edit permissions
-                        </BaseButton>
-                    </div>
-                </template>
-            </BaseTable>
-        </BaseCard>
+        <template v-else-if="users?.data.length">
+            <BaseCard>
+                <BaseTable
+                    :columns="columns"
+                    :rows="users.data as unknown as Record<string, unknown>[]"
+                    row-key="id">
+                    <template #cell-name="{row}">
+                        <span class="cell-name">{{ (row as unknown as User).name }}</span>
+                        <span v-if="(row as unknown as User).isTenantAdmin" class="badge admin">Admin</span>
+                    </template>
+                    <template #cell-status="{row}">
+                        <span v-if="(row as unknown as User).hasPendingInvite" class="badge pending">
+                            Pending
+                        </span>
+                        <span
+                            v-else
+                            class="badge"
+                            :class="{
+                                active: (row as unknown as User).isActive,
+                                inactive: !(row as unknown as User).isActive,
+                            }">
+                            {{ (row as unknown as User).isActive ? "Active" : "Inactive" }}
+                        </span>
+                    </template>
+                    <template #cell-actions="{row}">
+                        <div class="actions">
+                            <BaseButton
+                                v-if="!(row as unknown as User).isTenantAdmin"
+                                variant="ghost"
+                                size="sm"
+                                @click="openPermissionsDialog(row as unknown as User)">
+                                Edit permissions
+                            </BaseButton>
+                            <BaseButton
+                                v-if="
+                                    isCurrentUserTenantAdmin &&
+                                    !(row as unknown as User).isTenantAdmin &&
+                                    (row as unknown as User).id !== auth.user?.id
+                                "
+                                variant="ghost"
+                                size="sm"
+                                @click="openTransferDialog(row as unknown as User)">
+                                Transfer ownership
+                            </BaseButton>
+                        </div>
+                    </template>
+                </BaseTable>
+            </BaseCard>
+
+            <PaginationControls
+                v-model:page="pag.page.value"
+                v-model:page-size="pag.pageSize.value"
+                :total-pages="pag.totalPages.value"
+                :total="pag.total.value" />
+        </template>
         <div v-else class="empty-state">No users found.</div>
 
         <!-- Invite dialog -->
@@ -253,6 +322,27 @@ async function copyInviteLink(user: User) {
                 }}</BaseAlert>
             </div>
         </BaseDialog>
+
+        <!-- Transfer ownership dialog -->
+        <BaseDialog
+            :open="showTransfer"
+            title="Transfer ownership"
+            confirm-label="Transfer"
+            confirm-variant="danger"
+            :loading="transferLoading"
+            @confirm="handleTransfer"
+            @cancel="showTransfer = false">
+            <div class="dialog-fields">
+                <p>
+                    Are you sure you want to transfer tenant admin ownership to
+                    <strong>{{ transferTarget?.name }}</strong>?
+                </p>
+                <p class="transfer-warning">
+                    You will lose your tenant admin status and cannot undo this action yourself.
+                </p>
+                <BaseAlert v-if="transferError" variant="error">{{ transferError }}</BaseAlert>
+            </div>
+        </BaseDialog>
     </div>
 </template>
 
@@ -268,6 +358,11 @@ async function copyInviteLink(user: User) {
     margin: 0;
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
+}
+
+.tenant-filter {
+    max-width: 300px;
+    margin-bottom: var(--space-6);
 }
 
 .cell-name {
@@ -295,6 +390,12 @@ async function copyInviteLink(user: User) {
 .badge.pending {
     background: var(--color-warning-weak-bg);
     color: var(--color-warning-text);
+}
+
+.badge.admin {
+    margin-left: var(--space-2);
+    background: var(--color-primary-weak-bg, rgba(66, 176, 213, 0.15));
+    color: var(--color-primary, #42b0d5);
 }
 
 .actions {
@@ -380,5 +481,11 @@ async function copyInviteLink(user: User) {
 .action-toggle.checked {
     color: var(--color-neutral-text);
     font-weight: var(--font-weight-medium);
+}
+
+.transfer-warning {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
 }
 </style>

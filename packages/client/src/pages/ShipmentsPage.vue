@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import {onMounted} from "vue";
+import {watch} from "vue";
 import type {Paginated} from "@kamers/shared";
 import {useApiCall} from "../composables/useApiCall";
+import {usePagination} from "../composables/usePagination";
 import {listShipments, type Shipment} from "../api/shipments";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
+import PaginationControls from "../components/base/PaginationControls.vue";
 
 const columns: TableColumn[] = [
     {key: "id", label: "Shipment ID", cellClass: "cell-mono"},
@@ -14,9 +16,18 @@ const columns: TableColumn[] = [
     {key: "status", label: "Status"},
 ];
 
-const {data: shipments, loading, error, execute: fetchShipments} = useApiCall<Paginated<Shipment>>(listShipments);
+const pag = usePagination();
 
-onMounted(fetchShipments);
+const {data: shipments, loading, error, execute: fetchShipments} = useApiCall<Paginated<Shipment>>(
+    () => listShipments(pag.params.value)
+);
+
+async function fetch() {
+    await fetchShipments();
+    if (shipments.value) pag.setFromResponse(shipments.value);
+}
+
+watch(pag.params, fetch, {immediate: true});
 </script>
 
 <template>
@@ -27,18 +38,26 @@ onMounted(fetchShipments);
 
         <div v-if="loading" class="empty-state">Loading...</div>
         <BaseAlert v-else-if="error" variant="error">{{ error }}</BaseAlert>
-        <BaseCard v-else-if="shipments?.data.length">
-            <BaseTable :columns="columns" :rows="(shipments.data as unknown as Record<string, unknown>[])" row-key="id">
-                <template #cell-id="{value}">
-                    <span class="cell-mono">{{ value }}</span>
-                </template>
-                <template #cell-status="{value}">
-                    <span class="badge" :class="value as string">
-                        {{ (value as string).replace('_', ' ') }}
-                    </span>
-                </template>
-            </BaseTable>
-        </BaseCard>
+        <template v-else-if="shipments?.data.length">
+            <BaseCard>
+                <BaseTable :columns="columns" :rows="(shipments.data as unknown as Record<string, unknown>[])" row-key="id">
+                    <template #cell-id="{value}">
+                        <span class="cell-mono">{{ value }}</span>
+                    </template>
+                    <template #cell-status="{value}">
+                        <span class="badge" :class="value as string">
+                            {{ (value as string).replace('_', ' ') }}
+                        </span>
+                    </template>
+                </BaseTable>
+            </BaseCard>
+
+            <PaginationControls
+                v-model:page="pag.page.value"
+                v-model:page-size="pag.pageSize.value"
+                :total-pages="pag.totalPages.value"
+                :total="pag.total.value" />
+        </template>
         <div v-else class="empty-state">No shipments found.</div>
     </div>
 </template>
@@ -82,6 +101,16 @@ onMounted(fetchShipments);
 .badge.pending {
     background: var(--color-warning-weak-bg);
     color: var(--color-warning-text);
+}
+
+.badge.customs_hold {
+    background: var(--color-error-weak-bg);
+    color: var(--color-error);
+}
+
+.badge.cancelled {
+    background: var(--color-neutral-weakest-bg);
+    color: var(--color-neutral-weak-text);
 }
 
 .empty-state {

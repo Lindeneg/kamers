@@ -3,10 +3,13 @@ import {computed} from "vue";
 import {useRouter} from "vue-router";
 import {PERMISSIONS} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
+import {useLoadingTracker} from "../composables/useLoadingTracker";
 import BaseButton from "../components/base/BaseButton.vue";
+import BaseSpinner from "../components/base/BaseSpinner.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
+const {isLoading} = useLoadingTracker();
 
 interface NavItem {
     label: string;
@@ -79,6 +82,7 @@ async function handleLogout() {
         </aside>
 
         <main class="main">
+            <BaseSpinner v-if="isLoading" class="global-spinner" size="md" />
             <div class="main-content">
                 <RouterView />
             </div>
@@ -223,6 +227,14 @@ async function handleLogout() {
 .main {
     flex: 1;
     overflow-y: auto;
+    position: relative;
+}
+
+.global-spinner {
+    position: absolute;
+    bottom: var(--space-4);
+    right: var(--space-4);
+    z-index: 100;
 }
 
 .main-content {

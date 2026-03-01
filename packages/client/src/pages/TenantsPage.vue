@@ -27,7 +27,7 @@ const adminEmail = ref("");
 const adminName = ref("");
 const createLoading = ref(false);
 const createError = ref("");
-const createSuccess = ref<{inviteToken: string; email: string} | null>(null);
+const createSuccess = ref<{email: string} | null>(null);
 
 function resetCreateForm() {
     tenantName.value = "";
@@ -58,10 +58,7 @@ async function handleCreate() {
             adminEmail: adminEmail.value,
             adminName: adminName.value,
         });
-        createSuccess.value = {
-            inviteToken: res.data.adminUser.inviteToken,
-            email: res.data.adminUser.email,
-        };
+        createSuccess.value = {email: res.data.adminUser.email};
         await fetchTenants();
     } catch (e: any) {
         createError.value = e.response?.data?.msg ?? "Failed to create tenant";
@@ -75,16 +72,12 @@ function closeCreate() {
     resetCreateForm();
 }
 
-const copiedLink = ref(false);
-
-async function copyAdminLink() {
-    if (!createSuccess.value) return;
-    const url = `${window.location.origin}/set-password?token=${createSuccess.value.inviteToken}`;
-    await navigator.clipboard.writeText(url);
-    copiedLink.value = true;
-    setTimeout(() => {
-        copiedLink.value = false;
-    }, 2000);
+function handleConfirm() {
+    if (createSuccess.value) {
+        closeCreate();
+    } else {
+        handleCreate();
+    }
 }
 </script>
 
@@ -121,19 +114,16 @@ async function copyAdminLink() {
         <BaseDialog
             :open="showCreate"
             title="Create tenant"
-            confirm-label="Create"
+            :confirm-label="createSuccess ? 'Done' : 'Create'"
             confirm-variant="secondary"
             :loading="createLoading"
-            @confirm="handleCreate"
+            @confirm="handleConfirm"
             @cancel="closeCreate">
             <div class="dialog-fields">
                 <template v-if="createSuccess">
                     <BaseAlert variant="success">
-                        Tenant created. Admin invite for <strong>{{ createSuccess.email }}</strong> is ready.
+                        Tenant created. Admin invite email sent to <strong>{{ createSuccess.email }}</strong>.
                     </BaseAlert>
-                    <BaseButton variant="ghost" size="sm" @click="copyAdminLink">
-                        {{ copiedLink ? "Copied!" : "Copy admin invite link" }}
-                    </BaseButton>
                 </template>
                 <template v-else>
                     <FormInput id="tenant-name" v-model="tenantName" label="Organization name" required />

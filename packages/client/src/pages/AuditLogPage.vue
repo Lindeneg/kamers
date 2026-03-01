@@ -3,12 +3,16 @@ import {ref, computed, onMounted, watch} from "vue";
 import type {Paginated, AuditLogEntry} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
 import {useApiCall} from "../composables/useApiCall";
+import {usePagination} from "../composables/usePagination";
 import {listAuditLogs} from "../api/audit-logs";
 import {listTenants, type Tenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
+import BaseButton from "../components/base/BaseButton.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
+import BaseDialog from "../components/base/BaseDialog.vue";
 import FormSelect from "../components/form/FormSelect.vue";
+import PaginationControls from "../components/base/PaginationControls.vue";
 
 const auth = useAuthStore();
 
@@ -21,13 +25,11 @@ const columns: TableColumn[] = [
 ];
 
 const selectedTenantId = ref("");
-const page = ref(1);
-const pageSize = 20;
+const pag = usePagination({defaultPageSize: 20});
 
 const {data: logs, loading, error, execute: fetchLogs} = useApiCall<Paginated<AuditLogEntry>>(
     () => listAuditLogs({
-        page: page.value,
-        pageSize,
+        ...pag.params.value,
         ...(selectedTenantId.value && {tenantId: selectedTenantId.value}),
     })
 );
@@ -38,32 +40,34 @@ const tenantOptions = computed(() =>
     (tenants.value?.data ?? []).map((t) => ({value: t.id, label: t.name}))
 );
 
+async function fetch() {
+    await fetchLogs();
+    if (logs.value) pag.setFromResponse(logs.value);
+}
+
 onMounted(() => {
-    fetchLogs();
     if (auth.isSuperAdmin) fetchTenants();
 });
 
 watch(selectedTenantId, () => {
-    page.value = 1;
-    fetchLogs();
+    pag.resetPage();
 });
 
-function prevPage() {
-    if (page.value > 1) {
-        page.value--;
-        fetchLogs();
-    }
-}
-
-function nextPage() {
-    if (logs.value && page.value < logs.value.totalPages) {
-        page.value++;
-        fetchLogs();
-    }
-}
+watch([pag.params, selectedTenantId], fetch, {immediate: true});
 
 function formatTimestamp(date: Date | string): string {
     return new Date(date).toLocaleString();
+}
+
+// Inspect details dialog
+const inspectDetails = ref<Record<string, unknown> | null>(null);
+
+function openInspect(raw: string) {
+    try {
+        inspectDetails.value = JSON.parse(raw);
+    } catch {
+        inspectDetails.value = {raw};
+    }
 }
 </script>
 
@@ -106,19 +110,41 @@ function formatTimestamp(date: Date | string): string {
                         <span class="action-tag">{{ value }}</span>
                     </template>
                     <template #cell-details="{value}">
-                        <span v-if="value" class="cell-mono cell-secondary">{{ value }}</span>
+                        <BaseButton
+                            v-if="value"
+                            variant="ghost"
+                            size="sm"
+                            @click="openInspect(value as string)">
+                            Inspect
+                        </BaseButton>
                         <span v-else class="cell-secondary">&mdash;</span>
                     </template>
                 </BaseTable>
             </BaseCard>
 
-            <div v-if="logs.totalPages > 1" class="pagination">
-                <button class="page-btn" :disabled="page <= 1" @click="prevPage">&larr; Prev</button>
-                <span class="page-info">Page {{ logs.page }} of {{ logs.totalPages }}</span>
-                <button class="page-btn" :disabled="page >= logs.totalPages" @click="nextPage">Next &rarr;</button>
-            </div>
+            <PaginationControls
+                v-model:page="pag.page.value"
+                v-model:page-size="pag.pageSize.value"
+                :total-pages="pag.totalPages.value"
+                :total="pag.total.value" />
         </template>
         <div v-else class="empty-state">No audit logs found.</div>
+
+        <!-- Inspect details dialog -->
+        <BaseDialog
+            :open="inspectDetails !== null"
+            title="Inspect Details"
+            confirm-label="Done"
+            confirm-variant="secondary"
+            @confirm="inspectDetails = null"
+            @cancel="inspectDetails = null">
+            <dl v-if="inspectDetails" class="inspect-list">
+                <template v-for="(val, key) in inspectDetails" :key="key">
+                    <dt class="inspect-key">{{ key }}</dt>
+                    <dd class="inspect-value">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</dd>
+                </template>
+            </dl>
+        </BaseDialog>
     </div>
 </template>
 
@@ -164,35 +190,24 @@ function formatTimestamp(date: Date | string): string {
     color: var(--color-neutral-weak-text);
 }
 
-.pagination {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-4);
-    margin-top: var(--space-6);
+.inspect-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
 }
 
-.page-btn {
-    padding: var(--space-2) var(--space-4);
-    background: var(--color-neutral-bg);
-    border: 1px solid var(--color-neutral-border);
-    border-radius: var(--radius-md);
+.inspect-key {
+    font-weight: var(--font-weight-bold);
     font-size: var(--font-size-sm);
-    cursor: pointer;
-    transition: all var(--transition-fast);
+    color: var(--color-neutral-text);
 }
 
-.page-btn:hover:not(:disabled) {
-    background: var(--color-neutral-weak-bg);
-}
-
-.page-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.page-info {
+.inspect-value {
+    margin: 0;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
     font-size: var(--font-size-sm);
     color: var(--color-neutral-weak-text);
+    word-break: break-all;
 }
 </style>
