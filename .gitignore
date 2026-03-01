@@ -4,5 +4,6 @@ dist
 *.db-journal
 .env*
 !.env.example
+!.env.test
 generated/
 

@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  backend:
-    name: Backend Build
+  test:
+    name: Build & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,33 +20,21 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: packages/server
 
-      - name: Build
-        run: npm run build
-        working-directory: packages/server
+      - name: Build shared
+        run: npm run build:shared
 
-  frontend:
-    name: Frontend Build & Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Build server
+        run: npm run build:server
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: package-lock.json
+      - name: Build client
+        run: npm run build:client
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: packages/client
+      - name: Test shared
+        run: npm run test:shared
 
-      - name: Build
-        run: npm run build
-        working-directory: packages/client
+      - name: Test server
+        run: npm run test:server
 
-      - name: Test
-        run: npm test
-        working-directory: packages/client
-
+      - name: Test client
+        run: npm run test:client
