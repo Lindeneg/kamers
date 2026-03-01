@@ -6,7 +6,7 @@ export type TableColumn = {
     cellClass?: string;
 };
 
-const props = defineProps<{
+defineProps<{
     columns: TableColumn[];
     rows: T[];
     rowKey: string;
@@ -19,7 +19,9 @@ const placeholderRows = Array.from({length: 5}, (_, i) => i);
 
 <template>
     <div class="table-wrapper">
-        <div v-if="expectedCount && !loading && rows.length > 0 && rows.length !== expectedCount" class="table-count">
+        <div
+            v-if="expectedCount && !loading && rows.length > 0 && rows.length !== expectedCount"
+            class="table-count">
             {{ rows.length }} {{ rows.length === 1 ? "entry" : "entries" }}
         </div>
         <table class="base-table">
@@ -118,8 +120,13 @@ const placeholderRows = Array.from({length: 5}, (_, i) => i);
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 1; }
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 1;
+    }
 }
 
 @media (min-width: 641px) {

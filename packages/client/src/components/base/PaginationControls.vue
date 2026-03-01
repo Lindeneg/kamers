@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from "vue";
+import {ref, computed, onMounted, onUnmounted} from "vue";
 
 const props = withDefaults(defineProps<{
     page: number;
@@ -36,29 +36,68 @@ function onPageSizeChange(e: Event) {
     emit("update:pageSize", Number((e.target as HTMLSelectElement).value));
 }
 
+const topRef = ref<HTMLElement | null>(null);
+const topVisible = ref(true);
+let observer: IntersectionObserver | null = null;
+
+onMounted(() => {
+    if (!topRef.value) return;
+    observer = new IntersectionObserver(
+        ([entry]) => { topVisible.value = entry!.isIntersecting; },
+        {threshold: 0},
+    );
+    observer.observe(topRef.value);
+});
+
+onUnmounted(() => { observer?.disconnect(); });
 </script>
 
 <template>
-    <div v-if="totalPages > 0" class="pagination">
-        <button class="nav-btn" :disabled="page <= 1" aria-label="Previous page" @click="prev">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
+    <template v-if="totalPages > 0">
+        <div ref="topRef" class="pagination">
+            <button class="nav-btn" :disabled="page <= 1" aria-label="Previous page" @click="prev">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
 
-        <select class="page-select" :value="page" @change="onPageSelect">
-            <option v-for="p in pageOptions" :key="p" :value="p">{{ p }}</option>
-        </select>
-        <span class="label">of {{ totalPages }}</span>
+            <select class="page-select" :value="page" @change="onPageSelect">
+                <option v-for="p in pageOptions" :key="p" :value="p">{{ p }}</option>
+            </select>
+            <span class="label">of {{ totalPages }}</span>
 
-        <button class="nav-btn" :disabled="page >= totalPages" aria-label="Next page" @click="next">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
+            <button class="nav-btn" :disabled="page >= totalPages" aria-label="Next page" @click="next">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
 
-        <span class="separator" />
+            <span class="separator" />
 
-        <select class="size-select" :value="pageSize" @change="onPageSizeChange">
-            <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} / page</option>
-        </select>
-    </div>
+            <select class="size-select" :value="pageSize" @change="onPageSizeChange">
+                <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} / page</option>
+            </select>
+        </div>
+
+        <slot />
+
+        <div v-if="!topVisible" class="pagination bottom">
+            <button class="nav-btn" :disabled="page <= 1" aria-label="Previous page" @click="prev">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <select class="page-select" :value="page" @change="onPageSelect">
+                <option v-for="p in pageOptions" :key="p" :value="p">{{ p }}</option>
+            </select>
+            <span class="label">of {{ totalPages }}</span>
+
+            <button class="nav-btn" :disabled="page >= totalPages" aria-label="Next page" @click="next">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <span class="separator" />
+
+            <select class="size-select" :value="pageSize" @change="onPageSizeChange">
+                <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} / page</option>
+            </select>
+        </div>
+    </template>
 </template>
 
 <style scoped>
@@ -68,6 +107,11 @@ function onPageSizeChange(e: Event) {
     justify-content: center;
     gap: var(--space-2);
     margin-bottom: var(--space-4);
+}
+
+.pagination.bottom {
+    margin-bottom: 0;
+    margin-top: var(--space-4);
 }
 
 .nav-btn {

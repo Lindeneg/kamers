@@ -80,7 +80,7 @@ function openInspect(raw: string) {
                 :total="store.items.total"
                 :page-size="pageSize"
                 @update:page="onPageChange"
-                @update:page-size="onPageSizeChange" />
+                @update:page-size="onPageSizeChange">
 
             <BaseCard>
                 <BaseTable
@@ -116,6 +116,7 @@ function openInspect(raw: string) {
                     </template>
                 </BaseTable>
             </BaseCard>
+            </PaginationControls>
         </template>
 
         <!-- Inspect details dialog -->

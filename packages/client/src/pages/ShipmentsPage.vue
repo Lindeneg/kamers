@@ -32,7 +32,7 @@ const {page, pageSize, onPageChange, onPageSizeChange} = usePaginatedResource(st
                 :total="store.items.total"
                 :page-size="pageSize"
                 @update:page="onPageChange"
-                @update:page-size="onPageSizeChange" />
+                @update:page-size="onPageSizeChange">
 
             <BaseCard>
                 <BaseTable
@@ -51,6 +51,7 @@ const {page, pageSize, onPageChange, onPageSizeChange} = usePaginatedResource(st
                     </template>
                 </BaseTable>
             </BaseCard>
+            </PaginationControls>
         </template>
     </div>
 </template>

@@ -187,7 +187,7 @@ async function handleTransfer() {
                 :total="store.items.total"
                 :page-size="pageSize"
                 @update:page="onPageChange"
-                @update:page-size="onPageSizeChange" />
+                @update:page-size="onPageSizeChange">
 
             <BaseCard>
                 <BaseTable
@@ -231,6 +231,7 @@ async function handleTransfer() {
                     </template>
                 </BaseTable>
             </BaseCard>
+            </PaginationControls>
         </template>
 
         <!-- Invite dialog -->
