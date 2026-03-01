@@ -25,8 +25,9 @@ describe("auth", () => {
         expect(res.status).toBe(200);
         expect(res.body).toEqual({msg: "logged in"});
 
-        const cookies = res.headers["set-cookie"] as string[];
+        const cookies = res.headers["set-cookie"] as unknown as string[];
         expect(cookies).toBeDefined();
+        expect(Array.isArray(cookies)).toBe(true);
 
         const accessCookie = cookies.find((c: string) => c.startsWith("access_token="));
         expect(accessCookie).toBeDefined();
