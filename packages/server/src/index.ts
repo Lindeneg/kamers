@@ -9,6 +9,7 @@ import UserService from "./services/user-service";
 import TenantService from "./services/tenant-service";
 import ShipmentService from "./services/shipment-service";
 import AuditLogService from "./services/audit-log-service";
+import EmailService from "./services/email-service";
 import TenantRepository from "./repositories/tenant-repository";
 import UserRepository from "./repositories/user-repository";
 import PermissionRepository from "./repositories/permission-repository";
@@ -48,6 +49,8 @@ async function main(args: string[] | undefined) {
         inviteTokenExpiryMs: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
+    const emailService = new EmailService(log, env.clientUrl);
+
     const authSessionService = new AuthSessionService(
         authService,
         userRepo,
@@ -61,14 +64,16 @@ async function main(args: string[] | undefined) {
         userRepo,
         userPermissionRepo,
         auditLogRepo,
-        dataService
+        dataService,
+        emailService
     );
     const tenantService = new TenantService(
         tenantRepo,
         userRepo,
         authService,
         auditLogRepo,
-        dataService
+        dataService,
+        emailService
     );
 
     const shipmentService = new ShipmentService();
