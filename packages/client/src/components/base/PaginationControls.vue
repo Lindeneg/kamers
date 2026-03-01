@@ -1,143 +1,130 @@
 <script setup lang="ts">
 import {computed} from "vue";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     page: number;
     totalPages: number;
     total: number;
     pageSize: number;
-}>();
+    pageSizeOptions?: number[];
+}>(), {
+    pageSizeOptions: () => [10, 20, 50],
+});
 
 const emit = defineEmits<{
     "update:page": [value: number];
+    "update:pageSize": [value: number];
 }>();
 
-type PageItem = number | "...";
+const pageOptions = computed(() =>
+    Array.from({length: props.totalPages}, (_, i) => i + 1)
+);
 
-function range(from: number, to: number): number[] {
-    return Array.from({length: to - from + 1}, (_, i) => from + i);
+function prev() {
+    if (props.page > 1) emit("update:page", props.page - 1);
 }
 
-function buildPageStrip({current, last}: {current: number; last: number}): PageItem[] {
-    if (last <= 5) return range(1, last);
-
-    const nearStart = current <= 3;
-    const nearEnd = current >= last - 2;
-
-    if (nearStart) return [...range(1, Math.max(3, current + 1)), "...", last];
-    if (nearEnd) return [1, "...", ...range(Math.min(last - 2, current - 1), last)];
-    return [1, "...", current, "...", last];
+function next() {
+    if (props.page < props.totalPages) emit("update:page", props.page + 1);
 }
 
-const visiblePages = computed(() => buildPageStrip({current: props.page, last: props.totalPages}));
+function onPageSelect(e: Event) {
+    emit("update:page", Number((e.target as HTMLSelectElement).value));
+}
 
-const showingStart = computed(() => (props.page - 1) * props.pageSize + 1);
-const showingEnd = computed(() => Math.min(props.page * props.pageSize, props.total));
+function onPageSizeChange(e: Event) {
+    emit("update:pageSize", Number((e.target as HTMLSelectElement).value));
+}
+
 </script>
 
 <template>
     <div v-if="totalPages > 0" class="pagination">
-        <div class="page-strip">
-            <button
-                class="nav-btn"
-                :disabled="page <= 1"
-                @click="emit('update:page', page - 1)"
-                aria-label="Previous page">
-                &lsaquo;
-            </button>
+        <button class="nav-btn" :disabled="page <= 1" aria-label="Previous page" @click="prev">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
 
-            <template v-for="(item, idx) in visiblePages" :key="idx">
-                <span v-if="item === '...'" class="ellipsis">&hellip;</span>
-                <button
-                    v-else
-                    class="page-btn"
-                    :class="{active: item === page}"
-                    @click="emit('update:page', item as number)">
-                    {{ item }}
-                </button>
-            </template>
+        <select class="page-select" :value="page" @change="onPageSelect">
+            <option v-for="p in pageOptions" :key="p" :value="p">{{ p }}</option>
+        </select>
+        <span class="label">of {{ totalPages }}</span>
 
-            <button
-                class="nav-btn"
-                :disabled="page >= totalPages"
-                @click="emit('update:page', page + 1)"
-                aria-label="Next page">
-                &rsaquo;
-            </button>
-        </div>
+        <button class="nav-btn" :disabled="page >= totalPages" aria-label="Next page" @click="next">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
 
-        <p class="entry-count">Showing {{ showingStart }}&ndash;{{ showingEnd }} of {{ total }}</p>
+        <span class="separator" />
+
+        <select class="size-select" :value="pageSize" @change="onPageSizeChange">
+            <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} / page</option>
+        </select>
     </div>
 </template>
 
 <style scoped>
 .pagination {
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: var(--space-2);
-    margin-top: var(--space-6);
+    margin-bottom: var(--space-4);
 }
 
-.page-strip {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-}
-
-.nav-btn,
-.page-btn {
+.nav-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 32px;
-    height: 32px;
-    padding: 0 var(--space-2);
+    width: 28px;
+    height: 28px;
+    padding: 0;
     background: none;
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
     color: var(--color-neutral-weak-text);
     cursor: pointer;
     transition: all var(--transition-fast);
 }
 
-.nav-btn {
-    font-size: var(--font-size-lg);
-}
-
-.nav-btn:hover:not(:disabled),
-.page-btn:hover:not(.active) {
-    background: var(--color-neutral-weakest-bg);
+.nav-btn:hover:not(:disabled) {
+    border-color: var(--color-neutral-border);
     color: var(--color-neutral-text);
 }
 
 .nav-btn:disabled {
-    opacity: 0.3;
+    opacity: 0.25;
     cursor: not-allowed;
 }
 
-.page-btn.active {
-    color: var(--color-secondary, #42b0d5);
-    font-weight: var(--font-weight-bold);
-    border-bottom: 2px solid var(--color-secondary, #42b0d5);
-    border-radius: 0;
-}
-
-.ellipsis {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    height: 32px;
-    font-size: var(--font-size-sm);
-    color: var(--color-neutral-weakest-text);
-    user-select: none;
-}
-
-.entry-count {
-    margin: 0;
+.page-select,
+.size-select {
+    height: 28px;
+    padding: 0 var(--space-5) 0 var(--space-2);
+    border: 1px solid var(--color-neutral-border);
+    border-radius: var(--radius-md);
+    background: var(--color-neutral-bg);
     font-size: var(--font-size-xs);
-    color: var(--color-neutral-weakest-text);
+    color: var(--color-neutral-text);
+    cursor: pointer;
+}
+
+.page-select {
+    min-width: 48px;
+    text-align: center;
+}
+
+.size-select {
+    color: var(--color-neutral-weak-text);
+}
+
+.label {
+    font-size: var(--font-size-xs);
+    color: var(--color-neutral-weak-text);
+}
+
+.separator {
+    width: 1px;
+    height: 16px;
+    background: var(--color-neutral-border);
+    margin: 0 var(--space-1);
 }
 </style>

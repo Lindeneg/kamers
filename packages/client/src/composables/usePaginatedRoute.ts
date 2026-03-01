@@ -1,5 +1,10 @@
-import {computed} from "vue";
+import {computed, onMounted} from "vue";
 import {useRoute, useRouter} from "vue-router";
+
+interface PaginatedStore {
+    fetch(params: Record<string, any>): any;
+    invalidate(): void;
+}
 
 export function usePaginatedRoute(opts?: {defaultPageSize?: number}) {
     const route = useRoute();
@@ -28,4 +33,56 @@ export function usePaginatedRoute(opts?: {defaultPageSize?: number}) {
     }
 
     return {page, pageSize, setPage, setPageSize, setFilter, getFilter};
+}
+
+export function usePaginatedResource(
+    store: PaginatedStore,
+    opts?: {defaultPageSize?: number; filterKeys?: string[]},
+) {
+    const pag = usePaginatedRoute(opts);
+    const filterKeys = opts?.filterKeys ?? [];
+
+    function buildParams(overrides: Record<string, any> = {}) {
+        const params: Record<string, any> = {
+            page: overrides.page ?? pag.page.value,
+            pageSize: overrides.pageSize ?? pag.pageSize.value,
+        };
+        for (const key of filterKeys) {
+            const val = key in overrides ? overrides[key] : pag.getFilter(key);
+            if (val) params[key] = val;
+        }
+        return params;
+    }
+
+    onMounted(() => store.fetch(buildParams()));
+
+    function onPageChange(p: number) {
+        pag.setPage(p);
+        store.fetch(buildParams({page: p}));
+    }
+
+    function onPageSizeChange(size: number) {
+        pag.setPageSize(size);
+        store.fetch(buildParams({page: 1, pageSize: size}));
+    }
+
+    function onFilterChange(key: string, value: string) {
+        pag.setFilter(key, value);
+        store.invalidate();
+        store.fetch(buildParams({page: 1, [key]: value || undefined}));
+    }
+
+    function refetch() {
+        store.fetch(buildParams());
+    }
+
+    return {
+        page: pag.page,
+        pageSize: pag.pageSize,
+        getFilter: pag.getFilter,
+        onPageChange,
+        onPageSizeChange,
+        onFilterChange,
+        refetch,
+    };
 }

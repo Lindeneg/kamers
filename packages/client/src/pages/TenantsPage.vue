@@ -87,19 +87,19 @@ function handleConfirm() {
             <BaseButton variant="secondary" @click="showCreate = true">Create tenant</BaseButton>
         </div>
 
-        <div v-if="loading" class="empty-state">Loading...</div>
-        <BaseAlert v-else-if="error" variant="error">{{ error }}</BaseAlert>
-        <BaseCard v-else-if="tenants?.data.length">
+        <BaseAlert v-if="error" variant="error">{{ error }}</BaseAlert>
+        <BaseCard v-else>
             <BaseTable
                 :columns="columns"
-                :rows="(tenants.data as unknown as Record<string, unknown>[])"
+                :rows="tenants?.data ?? []"
+                :loading="loading"
                 row-key="id">
                 <template #cell-name="{row}">
-                    <span class="cell-name">{{ (row as unknown as Tenant).name }}</span>
+                    <span class="cell-name">{{ row.name }}</span>
                 </template>
                 <template #cell-domains="{row}">
                     <span
-                        v-for="d in (row as unknown as Tenant).domains"
+                        v-for="d in row.domains"
                         :key="d.id"
                         class="domain-tag">
                         {{ d.domain }}
@@ -107,7 +107,6 @@ function handleConfirm() {
                 </template>
             </BaseTable>
         </BaseCard>
-        <div v-else class="empty-state">No tenants found.</div>
 
         <!-- Create tenant dialog -->
         <BaseDialog

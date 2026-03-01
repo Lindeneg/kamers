@@ -4,7 +4,7 @@ import {PERMISSIONS, type Permission, type Paginated} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
 import {useUsersStore} from "../stores/users";
 import {useApiCall} from "../composables/useApiCall";
-import {usePaginatedRoute} from "../composables/usePaginatedRoute";
+import {usePaginatedResource} from "../composables/usePaginatedRoute";
 import type {User} from "../api/users";
 import {listTenants, type Tenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
@@ -18,7 +18,8 @@ import PaginationControls from "../components/base/PaginationControls.vue";
 
 const auth = useAuthStore();
 const store = useUsersStore();
-const pag = usePaginatedRoute();
+const {page, pageSize, getFilter, onPageChange, onPageSizeChange, onFilterChange, refetch} =
+    usePaginatedResource(store, {filterKeys: ["tenantId"]});
 const allPermissions = Object.values(PERMISSIONS);
 
 const permissionGroups = computed(() => {
@@ -39,7 +40,7 @@ const columns: TableColumn[] = [
     {key: "actions", label: ""},
 ];
 
-const selectedTenantId = computed(() => pag.getFilter("tenantId"));
+const selectedTenantId = computed(() => getFilter("tenantId"));
 
 const {data: tenants, execute: fetchTenants} = useApiCall<Paginated<Tenant>>(listTenants);
 
@@ -47,29 +48,9 @@ const tenantOptions = computed(() =>
     (tenants.value?.data ?? []).map((t) => ({value: t.id, label: t.name}))
 );
 
-function buildParams() {
-    return {
-        page: pag.page.value,
-        pageSize: pag.pageSize.value,
-        ...(selectedTenantId.value && {tenantId: selectedTenantId.value}),
-    };
-}
-
 onMounted(() => {
     if (auth.isSuperAdmin) fetchTenants();
-    store.fetch(buildParams());
 });
-
-function onPageChange(p: number) {
-    pag.setPage(p);
-    store.fetch({...buildParams(), page: p});
-}
-
-function onTenantChange(tenantId: string) {
-    pag.setFilter("tenantId", tenantId);
-    store.invalidate();
-    store.fetch({page: 1, pageSize: pag.pageSize.value, ...(tenantId && {tenantId})});
-}
 
 const isCurrentUserTenantAdmin = computed(() =>
     store.items?.data.some((u) => u.id === auth.user?.id && u.isTenantAdmin) ?? false
@@ -90,7 +71,7 @@ async function handleInvite() {
         showInvite.value = false;
         inviteEmail.value = "";
         inviteName.value = "";
-        store.fetch(buildParams());
+        refetch();
     } else {
         inviteError.value = result.ctx;
     }
@@ -140,7 +121,7 @@ async function handleUpdatePermissions() {
     if (result.ok) {
         showPermissions.value = false;
         editingUser.value = null;
-        store.fetch(buildParams());
+        refetch();
     } else {
         permissionsError.value = result.ctx;
     }
@@ -171,7 +152,7 @@ async function handleTransfer() {
     if (result.ok) {
         showTransfer.value = false;
         transferTarget.value = null;
-        store.fetch(buildParams());
+        refetch();
         await auth.fetchMe();
     } else {
         transferError.value = result.ctx;
@@ -194,68 +175,63 @@ async function handleTransfer() {
                 label="Tenant"
                 :options="tenantOptions"
                 placeholder="Your tenant"
-                @update:model-value="onTenantChange" />
+                @update:model-value="(v: string) => onFilterChange('tenantId', v)" />
         </div>
 
-        <div v-if="store.loading" class="empty-state">Loading...</div>
-        <BaseAlert v-else-if="store.error" variant="error">{{ store.error }}</BaseAlert>
-        <template v-else-if="store.items?.data.length">
+        <BaseAlert v-if="store.error" variant="error">{{ store.error }}</BaseAlert>
+        <template v-else>
+            <PaginationControls
+                v-if="store.items && store.items.totalPages > 0"
+                :page="page"
+                :total-pages="store.items.totalPages"
+                :total="store.items.total"
+                :page-size="pageSize"
+                @update:page="onPageChange"
+                @update:page-size="onPageSizeChange" />
+
             <BaseCard>
                 <BaseTable
                     :columns="columns"
-                    :rows="store.items.data as unknown as Record<string, unknown>[]"
+                    :rows="store.items?.data ?? []"
+                    :loading="store.loading"
+                    :expected-count="pageSize"
                     row-key="id">
                     <template #cell-name="{row}">
-                        <span class="cell-name">{{ (row as unknown as User).name }}</span>
-                        <span v-if="(row as unknown as User).isTenantAdmin" class="badge admin">Admin</span>
+                        <span class="cell-name">{{ row.name }}</span>
+                        <span v-if="row.isTenantAdmin" class="badge admin">Admin</span>
                     </template>
                     <template #cell-status="{row}">
-                        <span v-if="(row as unknown as User).hasPendingInvite" class="badge pending">
+                        <span v-if="row.hasPendingInvite" class="badge pending">
                             Pending
                         </span>
                         <span
                             v-else
                             class="badge"
-                            :class="{
-                                active: (row as unknown as User).isActive,
-                                inactive: !(row as unknown as User).isActive,
-                            }">
-                            {{ (row as unknown as User).isActive ? "Active" : "Inactive" }}
+                            :class="{active: row.isActive, inactive: !row.isActive}">
+                            {{ row.isActive ? "Active" : "Inactive" }}
                         </span>
                     </template>
                     <template #cell-actions="{row}">
                         <div class="actions">
                             <BaseButton
-                                v-if="!(row as unknown as User).isTenantAdmin"
+                                v-if="!row.isTenantAdmin"
                                 variant="ghost"
                                 size="sm"
-                                @click="openPermissionsDialog(row as unknown as User)">
+                                @click="openPermissionsDialog(row)">
                                 Edit permissions
                             </BaseButton>
                             <BaseButton
-                                v-if="
-                                    isCurrentUserTenantAdmin &&
-                                    !(row as unknown as User).isTenantAdmin &&
-                                    (row as unknown as User).id !== auth.user?.id
-                                "
+                                v-if="isCurrentUserTenantAdmin && !row.isTenantAdmin && row.id !== auth.user?.id"
                                 variant="ghost"
                                 size="sm"
-                                @click="openTransferDialog(row as unknown as User)">
+                                @click="openTransferDialog(row)">
                                 Transfer ownership
                             </BaseButton>
                         </div>
                     </template>
                 </BaseTable>
             </BaseCard>
-
-            <PaginationControls
-                :page="pag.page.value"
-                :total-pages="store.items.totalPages"
-                :total="store.items.total"
-                :page-size="pag.pageSize.value"
-                @update:page="onPageChange" />
         </template>
-        <div v-else class="empty-state">No users found.</div>
 
         <!-- Invite dialog -->
         <BaseDialog
@@ -404,12 +380,6 @@ async function handleTransfer() {
     display: flex;
     gap: var(--space-2);
     justify-content: flex-end;
-}
-
-.empty-state {
-    text-align: center;
-    padding: var(--space-12) var(--space-4);
-    color: var(--color-neutral-weak-text);
 }
 
 .dialog-fields {

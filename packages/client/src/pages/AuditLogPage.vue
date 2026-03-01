@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import {ref, computed, onMounted} from "vue";
-import type {Paginated, AuditLogEntry} from "@kamers/shared";
+import type {Paginated} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
 import {useAuditLogsStore} from "../stores/audit-logs";
 import {useApiCall} from "../composables/useApiCall";
-import {usePaginatedRoute} from "../composables/usePaginatedRoute";
+import {usePaginatedResource} from "../composables/usePaginatedRoute";
 import {listTenants, type Tenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
@@ -16,7 +16,8 @@ import PaginationControls from "../components/base/PaginationControls.vue";
 
 const auth = useAuthStore();
 const store = useAuditLogsStore();
-const pag = usePaginatedRoute({defaultPageSize: 20});
+const {page, pageSize, getFilter, onPageChange, onPageSizeChange, onFilterChange} =
+    usePaginatedResource(store, {defaultPageSize: 20, filterKeys: ["tenantId"]});
 
 const columns: TableColumn[] = [
     {key: "createdAt", label: "Timestamp"},
@@ -26,7 +27,7 @@ const columns: TableColumn[] = [
     {key: "details", label: "Details"},
 ];
 
-const selectedTenantId = computed(() => pag.getFilter("tenantId"));
+const selectedTenantId = computed(() => getFilter("tenantId"));
 
 const {data: tenants, execute: fetchTenants} = useApiCall<Paginated<Tenant>>(listTenants);
 
@@ -34,29 +35,9 @@ const tenantOptions = computed(() =>
     (tenants.value?.data ?? []).map((t) => ({value: t.id, label: t.name}))
 );
 
-function buildParams() {
-    return {
-        page: pag.page.value,
-        pageSize: pag.pageSize.value,
-        ...(selectedTenantId.value && {tenantId: selectedTenantId.value}),
-    };
-}
-
 onMounted(() => {
     if (auth.isSuperAdmin) fetchTenants();
-    store.fetch(buildParams());
 });
-
-function onPageChange(p: number) {
-    pag.setPage(p);
-    store.fetch({...buildParams(), page: p});
-}
-
-function onTenantChange(tenantId: string) {
-    pag.setFilter("tenantId", tenantId);
-    store.invalidate();
-    store.fetch({page: 1, pageSize: pag.pageSize.value, ...(tenantId && {tenantId})});
-}
 
 function formatTimestamp(date: Date | string): string {
     return new Date(date).toLocaleString();
@@ -87,26 +68,36 @@ function openInspect(raw: string) {
                 label="Tenant"
                 :options="tenantOptions"
                 placeholder="Your tenant"
-                @update:model-value="onTenantChange" />
+                @update:model-value="(v: string) => onFilterChange('tenantId', v)" />
         </div>
 
-        <div v-if="store.loading" class="empty-state">Loading...</div>
-        <BaseAlert v-else-if="store.error" variant="error">{{ store.error }}</BaseAlert>
-        <template v-else-if="store.items?.data.length">
+        <BaseAlert v-if="store.error" variant="error">{{ store.error }}</BaseAlert>
+        <template v-else>
+            <PaginationControls
+                v-if="store.items && store.items.totalPages > 0"
+                :page="page"
+                :total-pages="store.items.totalPages"
+                :total="store.items.total"
+                :page-size="pageSize"
+                @update:page="onPageChange"
+                @update:page-size="onPageSizeChange" />
+
             <BaseCard>
                 <BaseTable
                     :columns="columns"
-                    :rows="(store.items.data as unknown as Record<string, unknown>[])"
+                    :rows="store.items?.data ?? []"
+                    :loading="store.loading"
+                    :expected-count="pageSize"
                     row-key="id">
                     <template #cell-createdAt="{row}">
                         <span class="cell-mono">
-                            {{ formatTimestamp((row as unknown as AuditLogEntry).createdAt) }}
+                            {{ formatTimestamp(row.createdAt) }}
                         </span>
                     </template>
                     <template #cell-user="{row}">
-                        <template v-if="(row as unknown as AuditLogEntry).user">
-                            {{ (row as unknown as AuditLogEntry).user!.name }}
-                            <span class="cell-secondary">{{ (row as unknown as AuditLogEntry).user!.email }}</span>
+                        <template v-if="row.user">
+                            {{ row.user.name }}
+                            <span class="cell-secondary">{{ row.user.email }}</span>
                         </template>
                         <span v-else class="cell-secondary">System</span>
                     </template>
@@ -125,15 +116,7 @@ function openInspect(raw: string) {
                     </template>
                 </BaseTable>
             </BaseCard>
-
-            <PaginationControls
-                :page="pag.page.value"
-                :total-pages="store.items.totalPages"
-                :total="store.items.total"
-                :page-size="pag.pageSize.value"
-                @update:page="onPageChange" />
         </template>
-        <div v-else class="empty-state">No audit logs found.</div>
 
         <!-- Inspect details dialog -->
         <BaseDialog
@@ -187,12 +170,6 @@ function openInspect(raw: string) {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
     font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
-}
-
-.empty-state {
-    text-align: center;
-    padding: var(--space-12) var(--space-4);
-    color: var(--color-neutral-weak-text);
 }
 
 .inspect-list {

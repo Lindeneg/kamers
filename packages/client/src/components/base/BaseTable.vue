@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends Record<string, any>">
 export type TableColumn = {
     key: string;
     label: string;
@@ -6,18 +6,22 @@ export type TableColumn = {
     cellClass?: string;
 };
 
-defineProps<{
+const props = defineProps<{
     columns: TableColumn[];
-    rows: Record<string, unknown>[];
+    rows: T[];
     rowKey: string;
+    loading?: boolean;
+    expectedCount?: number;
 }>();
+
+const placeholderRows = Array.from({length: 5}, (_, i) => i);
 </script>
 
 <template>
-    <div v-if="rows.length === 0" class="base-table-empty">
-        <slot name="empty" />
-    </div>
-    <div v-else class="table-wrapper">
+    <div class="table-wrapper">
+        <div v-if="expectedCount && !loading && rows.length > 0 && rows.length !== expectedCount" class="table-count">
+            {{ rows.length }} {{ rows.length === 1 ? "entry" : "entries" }}
+        </div>
         <table class="base-table">
             <thead>
                 <tr>
@@ -26,7 +30,21 @@ defineProps<{
                     </th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody v-if="loading">
+                <tr v-for="i in placeholderRows" :key="i">
+                    <td v-for="col in columns" :key="col.key" :class="col.cellClass">
+                        <span class="skeleton" />
+                    </td>
+                </tr>
+            </tbody>
+            <tbody v-else-if="rows.length === 0">
+                <tr>
+                    <td :colspan="columns.length" class="empty-cell">
+                        <slot name="empty">No data</slot>
+                    </td>
+                </tr>
+            </tbody>
+            <tbody v-else>
                 <tr v-for="row in rows" :key="row[rowKey] as string | number">
                     <td v-for="col in columns" :key="col.key" :class="col.cellClass">
                         <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">
@@ -76,6 +94,32 @@ defineProps<{
 
 .base-table tbody tr:hover {
     background-color: var(--color-neutral-weak-bg);
+}
+
+.table-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-neutral-weakest-text);
+    padding: 0 var(--space-1) var(--space-2);
+}
+
+.empty-cell {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+    color: var(--color-neutral-weak-text);
+}
+
+.skeleton {
+    display: block;
+    height: 14px;
+    width: 70%;
+    background: var(--color-neutral-weakest-bg);
+    border-radius: var(--radius-sm);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
 }
 
 @media (min-width: 641px) {

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import {onMounted} from "vue";
 import {useShipmentsStore} from "../stores/shipments";
-import {usePaginatedRoute} from "../composables/usePaginatedRoute";
+import {usePaginatedResource} from "../composables/usePaginatedRoute";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
@@ -14,15 +13,8 @@ const columns: TableColumn[] = [
     {key: "status", label: "Status"},
 ];
 
-const pag = usePaginatedRoute();
 const store = useShipmentsStore();
-
-onMounted(() => store.fetch({page: pag.page.value, pageSize: pag.pageSize.value}));
-
-function onPageChange(p: number) {
-    pag.setPage(p);
-    store.fetch({page: p, pageSize: pag.pageSize.value});
-}
+const {page, pageSize, onPageChange, onPageSizeChange} = usePaginatedResource(store);
 </script>
 
 <template>
@@ -31,11 +23,24 @@ function onPageChange(p: number) {
             <h1>Shipments</h1>
         </div>
 
-        <div v-if="store.loading" class="empty-state">Loading...</div>
-        <BaseAlert v-else-if="store.error" variant="error">{{ store.error }}</BaseAlert>
-        <template v-else-if="store.items?.data.length">
+        <BaseAlert v-if="store.error" variant="error">{{ store.error }}</BaseAlert>
+        <template v-else>
+            <PaginationControls
+                v-if="store.items && store.items.totalPages > 0"
+                :page="page"
+                :total-pages="store.items.totalPages"
+                :total="store.items.total"
+                :page-size="pageSize"
+                @update:page="onPageChange"
+                @update:page-size="onPageSizeChange" />
+
             <BaseCard>
-                <BaseTable :columns="columns" :rows="(store.items.data as unknown as Record<string, unknown>[])" row-key="id">
+                <BaseTable
+                    :columns="columns"
+                    :rows="store.items?.data ?? []"
+                    :loading="store.loading"
+                    :expected-count="pageSize"
+                    row-key="id">
                     <template #cell-id="{value}">
                         <span class="cell-mono">{{ value }}</span>
                     </template>
@@ -46,15 +51,7 @@ function onPageChange(p: number) {
                     </template>
                 </BaseTable>
             </BaseCard>
-
-            <PaginationControls
-                :page="pag.page.value"
-                :total-pages="store.items.totalPages"
-                :total="store.items.total"
-                :page-size="pag.pageSize.value"
-                @update:page="onPageChange" />
         </template>
-        <div v-else class="empty-state">No shipments found.</div>
     </div>
 </template>
 
@@ -106,12 +103,6 @@ function onPageChange(p: number) {
 
 .badge.cancelled {
     background: var(--color-neutral-weakest-bg);
-    color: var(--color-neutral-weak-text);
-}
-
-.empty-state {
-    text-align: center;
-    padding: var(--space-12) var(--space-4);
     color: var(--color-neutral-weak-text);
 }
 </style>
