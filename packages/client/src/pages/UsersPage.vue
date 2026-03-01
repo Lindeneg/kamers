@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {ref, computed, onMounted} from "vue";
-import {PERMISSIONS, type Permission, type Paginated} from "@kamers/shared";
+import {PERMISSIONS, groupPermissionsByResource, type Permission, type Paginated} from "@kamers/shared";
 import {useAuthStore} from "../stores/auth";
 import {useUsersStore} from "../stores/users";
 import {useApiCall} from "../composables/useApiCall";
@@ -21,17 +21,7 @@ const store = useUsersStore();
 const {page, pageSize, getFilter, onPageChange, onPageSizeChange, onFilterChange, refetch} =
     usePaginatedResource(store, {filterKeys: ["tenantId"]});
 const allPermissions = Object.values(PERMISSIONS);
-
-const permissionGroups = computed(() => {
-    const groups: Record<string, Permission[]> = {};
-    for (const perm of allPermissions) {
-        const resource = perm.split(".")[0];
-        if (!resource) continue;
-        if (!groups[resource]) groups[resource] = [];
-        groups[resource].push(perm);
-    }
-    return groups;
-});
+const permissionGroups = computed(() => groupPermissionsByResource(allPermissions));
 
 const columns: TableColumn[] = [
     {key: "name", label: "Name"},

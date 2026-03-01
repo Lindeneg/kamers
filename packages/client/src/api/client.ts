@@ -21,7 +21,7 @@ api.interceptors.response.use(
                 return api(originalRequest);
             } catch {
                 router.push("/login");
-                return Promise.reject(error);
+                return new Promise(() => {});
             }
         }
 

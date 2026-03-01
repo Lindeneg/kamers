@@ -24,6 +24,7 @@ export function usePaginatedStore<T, TFilter = {}>(apiFn: FetchFn<T, TFilter>) {
 
         if (cache.has(page)) {
             items.value = {data: cache.get(page)!, page, pageSize, total: cachedTotal, totalPages: cachedTotalPages} as Paginated<T>;
+            loading.value = false;
             return;
         }
 

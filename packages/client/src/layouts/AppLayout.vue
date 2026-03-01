@@ -30,8 +30,8 @@ const navItems = computed<NavItem[]>(() => [
 
 const visibleNav = computed(() => navItems.value.filter((item) => item.visible));
 
-async function handleLogout() {
-    await auth.logout();
+function handleLogout() {
+    auth.logout();
     router.push("/login");
 }
 </script>

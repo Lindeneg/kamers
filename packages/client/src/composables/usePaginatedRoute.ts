@@ -6,7 +6,7 @@ interface PaginatedStore {
     invalidate(): void;
 }
 
-export function usePaginatedRoute(opts?: {defaultPageSize?: number}) {
+function usePaginatedRoute(opts?: {defaultPageSize?: number}) {
     const route = useRoute();
     const router = useRouter();
     const defaultSize = opts?.defaultPageSize ?? 10;
@@ -56,6 +56,9 @@ export function usePaginatedResource(
 
     onMounted(() => store.fetch(buildParams()));
 
+    // Note: pag.setPage/setPageSize/setFilter call router.replace (async), so we pass
+    // explicit overrides to buildParams rather than reading from route (which hasn't updated yet).
+
     function onPageChange(p: number) {
         pag.setPage(p);
         store.fetch(buildParams({page: p}));
@@ -73,6 +76,7 @@ export function usePaginatedResource(
     }
 
     function refetch() {
+        store.invalidate();
         store.fetch(buildParams());
     }
 

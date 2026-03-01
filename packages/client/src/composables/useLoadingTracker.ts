@@ -3,16 +3,10 @@ import api from "../api/client";
 
 const activeRequests = ref(0);
 
-api.interceptors.request.use(
-    (config) => {
-        activeRequests.value++;
-        return config;
-    },
-    (error) => {
-        activeRequests.value--;
-        return Promise.reject(error);
-    }
-);
+api.interceptors.request.use((config) => {
+    activeRequests.value++;
+    return config;
+});
 
 api.interceptors.response.use(
     (response) => {

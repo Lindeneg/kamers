@@ -42,3 +42,17 @@ export function hasAllPermissions(granted: Permission[], required: Permission[])
 export function hasAnyPermission(granted: Permission[], required: Permission[]): boolean {
     return required.some((p) => granted.includes(p));
 }
+
+/**
+ * Group permissions by their resource prefix (e.g. "shipments.read" → "shipments").
+ */
+export function groupPermissionsByResource(perms: Permission[]): Record<string, Permission[]> {
+    const groups: Record<string, Permission[]> = {};
+    for (const perm of perms) {
+        const resource = perm.split(".")[0];
+        if (!resource) continue;
+        if (!groups[resource]) groups[resource] = [];
+        groups[resource].push(perm);
+    }
+    return groups;
+}
