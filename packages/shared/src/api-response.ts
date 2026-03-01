@@ -56,7 +56,6 @@ export type TenantsResponse = {
         adminUser: {
             id: string;
             email: string;
-            inviteToken: string;
         };
     };
 };
@@ -67,12 +66,12 @@ export interface UserDetail {
     name: string;
     isActive: boolean;
     isSuperAdmin: boolean;
+    isTenantAdmin: boolean;
     tenantId: string;
     hasPendingInvite: boolean;
     permissions: Permission[];
     createdAt: Date;
     updatedAt: Date;
-    inviteLink?: string;
 }
 
 export type UsersResponse = {
@@ -80,9 +79,9 @@ export type UsersResponse = {
     invite: {
         id: string;
         email: string;
-        inviteToken: string;
     };
     updatePermissions: BasePayload;
+    transferOwnership: BasePayload;
 };
 
 export interface AuditLogEntry {
