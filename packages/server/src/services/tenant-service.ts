@@ -5,6 +5,7 @@ import type UserRepository from "../repositories/user-repository.js";
 import type AuthService from "./auth-service.js";
 import type AuditLogRepository from "../repositories/audit-log-repository.js";
 import type DataService from "./data-service.js";
+import type EmailService from "./email-service.js";
 
 interface CreateTenantInput {
     name: string;
@@ -31,7 +32,8 @@ class TenantService {
         private readonly userRepo: UserRepository,
         private readonly authService: AuthService,
         private readonly auditLogRepo: AuditLogRepository,
-        private readonly dataService: DataService
+        private readonly dataService: DataService,
+        private readonly emailService: EmailService
     ) {}
 
     async create(
@@ -68,6 +70,7 @@ class TenantService {
                         email: adminEmail,
                         name: adminName,
                         tenantId: tenant.id,
+                        isTenantAdmin: true,
                         inviteToken,
                         inviteTokenExpiry,
                     },
@@ -86,6 +89,8 @@ class TenantService {
                 ipAddress: ctx.ipAddress,
             });
 
+            this.emailService.sendInviteEmail(adminEmail, adminName, inviteToken);
+
             return success({
                 tenant: {
                     id: result.tenant.id,
@@ -101,7 +106,6 @@ class TenantService {
                 adminUser: {
                     id: result.adminUser.id,
                     email: result.adminUser.email,
-                    inviteToken,
                 },
             });
         } catch {

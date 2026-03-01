@@ -14,6 +14,7 @@ import type UserRepository from "../repositories/user-repository";
 import type UserPermissionRepository from "../repositories/user-permission-repository";
 import type AuditLogRepository from "../repositories/audit-log-repository";
 import type DataService from "./data-service";
+import type EmailService from "./email-service";
 
 interface InviteInput {
     email: string;
@@ -37,10 +38,19 @@ interface UpdatePermissionsContext {
     ipAddress: string | undefined;
 }
 
+interface TransferOwnershipContext {
+    tenantId: string;
+    actingUserId: string;
+    ipAddress: string | undefined;
+}
+
 export const UserError = {
     EMAIL_TAKEN: "email_taken",
     USER_NOT_FOUND: "user_not_found",
     CROSS_TENANT: "cross_tenant",
+    CANNOT_MODIFY_TENANT_ADMIN: "cannot_modify_tenant_admin",
+    CANNOT_MODIFY_SELF: "cannot_modify_self",
+    NOT_TENANT_ADMIN: "not_tenant_admin",
     DB_ERROR: "db_error",
 } as const;
 
@@ -52,11 +62,24 @@ class UserService {
         private readonly userRepo: UserRepository,
         private readonly userPermissionRepo: UserPermissionRepository,
         private readonly auditLogRepo: AuditLogRepository,
-        private readonly dataService: DataService
+        private readonly dataService: DataService,
+        private readonly emailService: EmailService
     ) {}
 
-    async listByTenant(tenantId: string, pagination: PaginationParams): Promise<Result<UsersResponse["list"], UserError>> {
-        const usersResult = await this.userRepo.findByTenantId(tenantId, toSkipTake(pagination));
+    async listByTenant(
+        tenantId: string,
+        queryTenantId: string | undefined,
+        actingUserId: string,
+        pagination: PaginationParams
+    ): Promise<Result<UsersResponse["list"], UserError>> {
+        const targetTenantId = queryTenantId ?? tenantId;
+        if (targetTenantId !== tenantId) {
+            const actingUser = await this.userRepo.findById(actingUserId);
+            if (!actingUser.ok) return failure(UserError.DB_ERROR);
+            if (!actingUser.data?.isSuperAdmin) return failure(UserError.CROSS_TENANT);
+        }
+
+        const usersResult = await this.userRepo.findByTenantId(targetTenantId, toSkipTake(pagination));
         if (!usersResult.ok) return failure(UserError.DB_ERROR);
 
         const mapped = usersResult.data.data.map((u) => ({
@@ -65,12 +88,12 @@ class UserService {
             name: u.name,
             isActive: u.isActive,
             isSuperAdmin: u.isSuperAdmin,
+            isTenantAdmin: u.isTenantAdmin,
             tenantId: u.tenantId,
             hasPendingInvite: u.inviteToken !== null,
             permissions: u.userPermissions.map((up) => up.permission.slug) as Permission[],
             createdAt: u.createdAt,
             updatedAt: u.updatedAt,
-            ...(u.inviteToken && {inviteLink: `/set-password?token=${u.inviteToken}`}),
         }));
 
         return success(paginate(mapped, usersResult.data.total, pagination));
@@ -110,10 +133,11 @@ class UserService {
                 ipAddress: ctx.ipAddress,
             });
 
+            this.emailService.sendInviteEmail(email, name, inviteToken);
+
             return success({
                 id: user.id,
                 email: user.email,
-                inviteToken,
             });
         } catch {
             return failure(UserError.DB_ERROR);
@@ -124,11 +148,18 @@ class UserService {
         input: UpdatePermissionsInput,
         ctx: UpdatePermissionsContext
     ): Promise<EmptyResult<UserError>> {
+        if (input.userId === ctx.actingUserId) {
+            return failure(UserError.CANNOT_MODIFY_SELF);
+        }
+
         const userResult = await this.userRepo.findById(input.userId);
         if (!userResult.ok) return failure(UserError.DB_ERROR);
         if (!userResult.data) return failure(UserError.USER_NOT_FOUND);
         if (userResult.data.tenantId !== ctx.tenantId) {
             return failure(UserError.CROSS_TENANT);
+        }
+        if (userResult.data.isTenantAdmin) {
+            return failure(UserError.CANNOT_MODIFY_TENANT_ADMIN);
         }
 
         const setResult = await this.userPermissionRepo.setPermissions(
@@ -142,6 +173,50 @@ class UserService {
             entity: "user",
             entityId: input.userId,
             details: JSON.stringify({permissions: input.permissions}),
+            tenantId: ctx.tenantId,
+            userId: ctx.actingUserId,
+            ipAddress: ctx.ipAddress,
+        });
+
+        return emptySuccess();
+    }
+
+    async transferOwnership(
+        targetUserId: string,
+        ctx: TransferOwnershipContext
+    ): Promise<EmptyResult<UserError>> {
+        // Verify acting user IS the tenant admin
+        const actingResult = await this.userRepo.findById(ctx.actingUserId);
+        if (!actingResult.ok) return failure(UserError.DB_ERROR);
+        if (!actingResult.data) return failure(UserError.USER_NOT_FOUND);
+        if (!actingResult.data.isTenantAdmin) return failure(UserError.NOT_TENANT_ADMIN);
+
+        // Verify target user exists and is in the same tenant
+        const targetResult = await this.userRepo.findById(targetUserId);
+        if (!targetResult.ok) return failure(UserError.DB_ERROR);
+        if (!targetResult.data) return failure(UserError.USER_NOT_FOUND);
+        if (targetResult.data.tenantId !== ctx.tenantId) return failure(UserError.CROSS_TENANT);
+
+        try {
+            await this.dataService.p.$transaction([
+                this.dataService.p.user.update({
+                    where: {id: ctx.actingUserId},
+                    data: {isTenantAdmin: false},
+                }),
+                this.dataService.p.user.update({
+                    where: {id: targetUserId},
+                    data: {isTenantAdmin: true},
+                }),
+            ]);
+        } catch {
+            return failure(UserError.DB_ERROR);
+        }
+
+        await this.auditLogRepo.create({
+            action: "transfer_ownership",
+            entity: "user",
+            entityId: targetUserId,
+            details: JSON.stringify({from: ctx.actingUserId, to: targetUserId}),
             tenantId: ctx.tenantId,
             userId: ctx.actingUserId,
             ipAddress: ctx.ipAddress,

@@ -8,20 +8,32 @@ import {
 } from "@kamers/shared";
 import {paginate, toSkipTake} from "../lib/pagination.js";
 
-const STUB_SHIPMENTS = [
-    {
-        id: "shp_001",
-        origin: "Shanghai",
-        destination: "Rotterdam",
-        status: "in_transit",
-    },
-    {
-        id: "shp_002",
-        origin: "Busan",
-        destination: "Los Angeles",
-        status: "delivered",
-    },
+const PORTS = [
+    "Shanghai", "Rotterdam", "Busan", "Los Angeles", "Singapore",
+    "Ningbo", "Hamburg", "Antwerp", "Qingdao", "Dubai",
+    "Felixstowe", "Colombo", "Tanjung Pelepas", "Kaohsiung", "Piraeus",
+    "Valencia", "Algeciras", "Yokohama", "Long Beach", "Savannah",
 ];
+
+const STATUSES = ["pending", "in_transit", "delivered", "customs_hold", "cancelled"];
+
+function generateShipments() {
+    const shipments: {id: string; origin: string; destination: string; status: string}[] = [];
+    for (let i = 1; i <= 62; i++) {
+        const originIdx = (i - 1) % PORTS.length;
+        let destIdx = (i * 7) % PORTS.length;
+        if (destIdx === originIdx) destIdx = (destIdx + 1) % PORTS.length;
+        shipments.push({
+            id: `shp_${String(i).padStart(3, "0")}`,
+            origin: PORTS[originIdx]!,
+            destination: PORTS[destIdx]!,
+            status: STATUSES[i % STATUSES.length]!,
+        });
+    }
+    return shipments;
+}
+
+const STUB_SHIPMENTS = generateShipments();
 
 class ShipmentService {
     async list(
