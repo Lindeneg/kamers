@@ -2,17 +2,29 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-ARG VITE_API_URL=/api
-ENV VITE_API_URL=$VITE_API_URL
+# Copy workspace root + package manifests for install
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/client/package.json packages/client/
 
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+RUN npm ci -w packages/shared -w packages/client
 
-# Production stage
+# Copy source
+COPY packages/shared/ packages/shared/
+COPY packages/client/ packages/client/
+
+# Build shared (needed by vite.config.ts and client code)
+RUN npm run build -w packages/shared
+
+# Create .env so loadEnv succeeds during vite build
+# API_URL is only used for the Vite dev proxy, not in the built output
+RUN echo "API_URL=http://localhost:3000" > packages/client/.env
+
+RUN npm run build -w packages/client
+
+# Production stage — static files served by nginx
 FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/packages/client/dist /usr/share/nginx/html
+COPY packages/client/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

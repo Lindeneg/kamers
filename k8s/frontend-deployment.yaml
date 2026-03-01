@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: vendor-frontend:latest
+          image: kamers-frontend:latest
           imagePullPolicy: Never
           ports:
             - containerPort: 80

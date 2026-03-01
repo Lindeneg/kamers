@@ -16,16 +16,32 @@ spec:
     spec:
       containers:
         - name: backend
-          image: vendor-backend:latest
+          image: kamers-backend:latest
           imagePullPolicy: Never
           ports:
             - containerPort: 3000
           env:
+            - name: NODE_ENV
+              value: "production"
             - name: PORT
               value: "3000"
+            - name: DATABASE_URL
+              value: "file:./data/prod.db"
+            - name: CLIENT_URL
+              value: "http://frontend"
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: JWT_ACCESS_SECRET
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: JWT_REFRESH_SECRET
           volumeMounts:
             - name: backend-data
-              mountPath: /app/data
+              mountPath: /app/packages/server/data
       volumes:
         - name: backend-data
           persistentVolumeClaim:

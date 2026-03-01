@@ -14,10 +14,6 @@ echo "bootstrapping local development environment"
 copy_env client
 copy_env server
 
-cp "$PWD/packages/client/.env.example" "$PWD/packages/client/.env.development"
-
-cp "$PWD/packages/server/.env.example" "$PWD/packages/server/.env.development"
-
 echo "installing node modules"
 npm i
 
@@ -33,7 +29,7 @@ npm run db:generate -- -- --config prisma.config.dev.ts
 echo "seeding database"
 npm run db:seed -- -- -E development
 
-echo "succesfully bootstrapped project"
+echo "successfully bootstrapped project"
 echo "npm run dev"
 echo "to start server and client"
 
