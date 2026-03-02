@@ -1,4 +1,5 @@
 import {describe, it, expect, beforeAll, afterAll} from "vitest";
+import {PERMISSIONS} from "@kamers/shared";
 import {createTestApp, type TestApp} from "./helpers/setup";
 import {seedTestWorld, type TestWorld} from "./helpers/seed";
 import {loginAs} from "./helpers/request";
@@ -61,6 +62,30 @@ describe("tenant isolation", () => {
 
         const res = await agent.get(`/api/audit-logs?tenantId=${world.tenantB.id}`);
         expect(res.status).toBe(200);
+    });
+
+    it("tenant admin created via POST /tenants gets all permissions", async () => {
+        const agent = await loginAs(t.app, world.superAdmin.email, world.superAdmin.password);
+
+        const res = await agent.post("/api/tenants").send({
+            name: "New Tenant",
+            domains: ["newtenant.com"],
+            adminEmail: "admin@newtenant.com",
+            adminName: "New Admin",
+        });
+        expect(res.status).toBe(201);
+
+        const adminUserId = res.body.adminUser.id;
+        const userPerms = await t.dataService.p.userPermission.findMany({
+            where: {userId: adminUserId},
+            include: {permission: true},
+        });
+
+        const allPermissions = Object.values(PERMISSIONS);
+        expect(userPerms).toHaveLength(allPermissions.length);
+
+        const slugs = userPerms.map((up: any) => up.permission.slug).sort();
+        expect(slugs).toEqual([...allPermissions].sort());
     });
 
     it("PUT /users/:id/permissions on user in other tenant returns 403", async () => {

@@ -1,4 +1,12 @@
-import {success, failure, type Result, type TenantsResponse, type PaginationParams} from "@kamers/shared";
+import {
+    success,
+    emptySuccess,
+    failure,
+    type Result,
+    type EmptyResult,
+    type TenantsResponse,
+    type PaginationParams,
+} from "@kamers/shared";
 import {paginate, toSkipTake} from "../lib/pagination";
 import type TenantRepository from "../repositories/tenant-repository";
 import type UserRepository from "../repositories/user-repository";
@@ -21,6 +29,7 @@ interface CreateTenantContext {
 
 export const TenantError = {
     FORBIDDEN: "forbidden",
+    TENANT_NOT_FOUND: "tenant_not_found",
     DB_ERROR: "db_error",
 } as const;
 
@@ -76,6 +85,16 @@ class TenantService {
                     },
                 });
 
+                // grant tenant admin user all permissions for that tenant
+                const allPerms = await tx.permission.findMany();
+                for (const perm of allPerms) {
+                    await tx.userPermission.upsert({
+                        where: {userId_permissionId: {userId: adminUser.id, permissionId: perm.id}},
+                        update: {},
+                        create: {userId: adminUser.id, permissionId: perm.id},
+                    });
+                }
+
                 return {tenant, adminUser};
             });
 
@@ -113,7 +132,10 @@ class TenantService {
         }
     }
 
-    async list(actingUserId: string, pagination: PaginationParams): Promise<Result<TenantsResponse["list"], TenantError>> {
+    async list(
+        actingUserId: string,
+        pagination: PaginationParams
+    ): Promise<Result<TenantsResponse["list"], TenantError>> {
         // Verify super admin
         const userResult = await this.userRepo.findById(actingUserId);
         if (!userResult.ok) return failure(TenantError.DB_ERROR);
@@ -137,6 +159,50 @@ class TenantService {
         }));
 
         return success(paginate(mapped, tenantsResult.data.total, pagination));
+    }
+
+    async softDelete(
+        tenantId: string,
+        ctx: {actingUserId: string; ipAddress: string | undefined}
+    ): Promise<EmptyResult<TenantError>> {
+        const userResult = await this.userRepo.findById(ctx.actingUserId);
+        if (!userResult.ok) return failure(TenantError.DB_ERROR);
+        if (!userResult.data?.isSuperAdmin) return failure(TenantError.FORBIDDEN);
+
+        const tenantResult = await this.tenantRepo.findById(tenantId);
+        if (!tenantResult.ok) return failure(TenantError.DB_ERROR);
+        if (!tenantResult.data) return failure(TenantError.TENANT_NOT_FOUND);
+
+        try {
+            await this.dataService.p.$transaction(async (tx) => {
+                await tx.tenant.update({
+                    where: {id: tenantId},
+                    data: {deletedAt: new Date()},
+                });
+
+                await tx.user.updateMany({
+                    where: {tenantId},
+                    data: {isActive: false, deletedAt: new Date()},
+                });
+
+                await tx.session.deleteMany({
+                    where: {user: {tenantId}},
+                });
+            });
+        } catch {
+            return failure(TenantError.DB_ERROR);
+        }
+
+        await this.auditLogRepo.create({
+            action: "delete_tenant",
+            entity: "tenant",
+            entityId: tenantId,
+            tenantId,
+            userId: ctx.actingUserId,
+            ipAddress: ctx.ipAddress,
+        });
+
+        return emptySuccess();
     }
 }
 

@@ -16,3 +16,7 @@ export function createTenant(input: {
 }) {
     return wrap(api.post<TenantsResponse["create"]>("/tenants", input));
 }
+
+export function deleteTenant(id: string) {
+    return wrap(api.delete<TenantsResponse["delete"]>(`/tenants/${id}`));
+}

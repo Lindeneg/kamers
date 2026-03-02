@@ -18,6 +18,8 @@ function mapTenantError(error: TenantError): HttpException {
     switch (error) {
         case TenantError.FORBIDDEN:
             return HttpException.forbidden();
+        case TenantError.TENANT_NOT_FOUND:
+            return HttpException.notFound();
         case TenantError.DB_ERROR:
             return HttpException.internal();
     }
@@ -49,6 +51,18 @@ class TenantController {
         if (!result.ok) return next(mapTenantError(result.ctx));
 
         res.json(result.data);
+    };
+
+    delete = async (req: Request, res: Response<TenantsResponse["delete"]>, next: NextFunction) => {
+        if (!req.auth) return next(HttpException.unauthorized());
+
+        const result = await this.tenantService.softDelete(req.params.id as string, {
+            actingUserId: req.auth.userId,
+            ipAddress: req.ip,
+        });
+        if (!result.ok) return next(mapTenantError(result.ctx));
+
+        res.json({msg: "tenant deleted"});
     };
 }
 

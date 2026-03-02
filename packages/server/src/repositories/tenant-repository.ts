@@ -62,11 +62,12 @@ class TenantRepository {
         try {
             const [tenants, total] = await Promise.all([
                 this.db.p.tenant.findMany({
+                    where: {deletedAt: null},
                     include: {domains: true},
                     skip: opts.skip,
                     take: opts.take,
                 }),
-                this.db.p.tenant.count(),
+                this.db.p.tenant.count({where: {deletedAt: null}}),
             ]);
             return success({data: tenants, total});
         } catch (err) {

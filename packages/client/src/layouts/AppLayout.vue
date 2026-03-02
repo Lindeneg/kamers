@@ -74,7 +74,8 @@ function handleLogout() {
             <div class="sidebar-footer">
                 <div class="user-card">
                     <div class="user-avatar">
-                        {{ auth.user?.name?.charAt(0)?.toUpperCase() }}
+                        <img v-if="auth.user?.pictureUrl" :src="auth.user.pictureUrl" :alt="auth.user?.name" class="user-avatar-img" />
+                        <template v-else>{{ auth.user?.name?.charAt(0)?.toUpperCase() }}</template>
                     </div>
                     <div class="user-details">
                         <span class="user-name">{{ auth.user?.name }}</span>
@@ -196,6 +197,14 @@ function handleLogout() {
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
     flex-shrink: 0;
+    overflow: hidden;
+}
+
+.user-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
 }
 
 .user-details {

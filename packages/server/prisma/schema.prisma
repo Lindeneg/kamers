@@ -14,10 +14,11 @@ datasource db {
 // filter by tenantId to prevent cross-tenant data leaks.
 
 model Tenant {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   domains   TenantDomain[]
   users     User[]
@@ -58,6 +59,7 @@ model User {
   isActive      Boolean  @default(true)
   isSuperAdmin  Boolean  @default(false)
   isTenantAdmin Boolean  @default(false)
+  pictureUrl   String?
   tenantId     String
   deletedAt    DateTime?
   createdAt    DateTime @default(now())
@@ -66,6 +68,7 @@ model User {
   tenant          Tenant           @relation(fields: [tenantId], references: [id])
   userPermissions UserPermission[]
   sessions        Session[]
+  oauthAccounts   OAuthAccount[]
 
   inviteToken       String?   @unique
   inviteTokenExpiry DateTime?
@@ -154,5 +157,22 @@ model AuditLog {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId, createdAt])
+  @@index([userId])
+}
+
+// ─── OAuth Accounts ─────────────────────────────────────────────────────────
+// Links external identity providers (Google, Microsoft) to local users.
+// A user can have multiple OAuth accounts (one per provider). The provider +
+// providerAccountId pair uniquely identifies an external identity.
+
+model OAuthAccount {
+  id                String @id @default(cuid())
+  provider          String
+  providerAccountId String
+  userId            String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
   @@index([userId])
 }
