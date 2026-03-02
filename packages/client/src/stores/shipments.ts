@@ -1,19 +1,28 @@
 import {defineStore} from "pinia";
-import type {Shipment} from "@kamers/shared";
-import {listShipments, createShipment} from "../api/shipments";
+import type {Shipment, CreateShipmentInput, UpdateShipmentInput} from "@kamers/shared";
+import {listShipments, createShipment, updateShipment, deleteShipment} from "../api/shipments";
 import {usePaginatedStore} from "./paginated";
 
 export const useShipmentsStore = defineStore("shipments", () => {
     const list = usePaginatedStore<Shipment>(listShipments);
 
-    // TODO: Instead of invalidating, push the created shipment into the cache directly
-    // (the API response contains the full entity). Invalidation discards all cached pages
-    // and forces a refetch — unnecessary when we already have the data.
-    async function create(origin: string, destination: string) {
-        const result = await createShipment(origin, destination);
+    async function create(data: CreateShipmentInput) {
+        const result = await createShipment(data);
         if (result.ok) list.invalidate();
         return result;
     }
 
-    return {...list, create};
+    async function update(id: string, data: UpdateShipmentInput) {
+        const result = await updateShipment(id, data);
+        if (result.ok) list.invalidate();
+        return result;
+    }
+
+    async function remove(id: string) {
+        const result = await deleteShipment(id);
+        if (result.ok) list.invalidate();
+        return result;
+    }
+
+    return {...list, create, update, remove};
 });

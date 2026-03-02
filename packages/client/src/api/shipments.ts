@@ -1,6 +1,6 @@
-import type {ShipmentsResponse, Shipment, PaginationParams} from "@kamers/shared";
+import type {ShipmentsResponse, Shipment, CreateShipmentInput, UpdateShipmentInput, PaginationParams} from "@kamers/shared";
 import api from "./client";
-import {wrap} from "./wrap";
+import {wrap, wrapWithValidation} from "./wrap";
 
 export type {Shipment};
 
@@ -8,6 +8,14 @@ export function listShipments(params?: Partial<PaginationParams>) {
     return wrap(api.get<ShipmentsResponse["list"]>("/shipments", {params}));
 }
 
-export function createShipment(origin: string, destination: string) {
-    return wrap(api.post<ShipmentsResponse["create"]>("/shipments", {origin, destination}));
+export function createShipment(data: CreateShipmentInput) {
+    return wrapWithValidation(api.post<ShipmentsResponse["create"]>("/shipments", data));
+}
+
+export function updateShipment(id: string, data: UpdateShipmentInput) {
+    return wrapWithValidation(api.put<ShipmentsResponse["update"]>(`/shipments/${id}`, data));
+}
+
+export function deleteShipment(id: string) {
+    return wrap(api.delete<ShipmentsResponse["delete"]>(`/shipments/${id}`));
 }
