@@ -5,7 +5,8 @@ import {parsePagination} from "../lib/pagination";
 import type AuditLogService from "../services/audit-log-service";
 import {AuditLogError} from "../services/audit-log-service";
 
-function mapAuditLogError(error: AuditLogError): HttpException {
+function mapAuditLogError(req: Request, error: AuditLogError): HttpException {
+    req.log.error(error);
     switch (error) {
         case AuditLogError.FORBIDDEN:
             return HttpException.forbidden();
@@ -29,7 +30,7 @@ class AuditLogController {
             req.auth.userId,
             pagination
         );
-        if (!result.ok) return next(mapAuditLogError(result.ctx));
+        if (!result.ok) return next(mapAuditLogError(req, result.ctx));
 
         res.json(result.data);
     };

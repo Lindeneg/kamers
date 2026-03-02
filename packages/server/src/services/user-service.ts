@@ -261,10 +261,20 @@ class UserService {
         if (userResult.data.isTenantAdmin) return failure(UserError.CANNOT_MODIFY_TENANT_ADMIN);
 
         try {
-            await this.dataService.p.user.update({
-                where: {id: targetUserId},
-                data: {isActive},
-            });
+            if (isActive) {
+                await this.dataService.p.user.update({
+                    where: {id: targetUserId},
+                    data: {isActive},
+                });
+            } else {
+                await this.dataService.p.$transaction(async (tx) => {
+                    await tx.user.update({
+                        where: {id: targetUserId},
+                        data: {isActive},
+                    });
+                    await tx.session.deleteMany({where: {userId: targetUserId}});
+                });
+            }
         } catch {
             return failure(UserError.DB_ERROR);
         }

@@ -1,6 +1,6 @@
 import {success, failure, type Result, type MaybeNull} from "@kamers/shared";
 import type {Tenant, TenantDomain} from "../generated/prisma/index";
-import type {SkipTake} from "../lib/pagination";
+import type {SkipTake, PaginatedResult} from "../lib/pagination";
 import type DataService from "../services/data-service";
 import type LoggerService from "../services/logger-service";
 
@@ -58,7 +58,7 @@ class TenantRepository {
 
     async findAll(
         opts: Partial<SkipTake> = {}
-    ): Promise<Result<{data: TenantWithDomains[]; total: number}>> {
+    ): Promise<Result<PaginatedResult<TenantWithDomains>>> {
         try {
             const [tenants, total] = await Promise.all([
                 this.db.p.tenant.findMany({

@@ -17,6 +17,8 @@ export interface TestWorld {
     userB: {id: string; email: string; password: string; tenantId: string};
     inactiveA: {id: string; email: string; password: string; tenantId: string};
     invitedA: {id: string; email: string; inviteToken: string; tenantId: string};
+    shipmentA: {id: string; referenceNumber: string; tenantId: string};
+    shipmentB: {id: string; referenceNumber: string; tenantId: string};
 }
 
 export async function seedTestWorld(
@@ -27,6 +29,9 @@ export async function seedTestWorld(
 
     // Clear all data from previous test runs (order matters for FK constraints)
     await prisma.auditLog.deleteMany();
+    await prisma.booking.deleteMany();
+    await prisma.container.deleteMany();
+    await prisma.shipment.deleteMany();
     await prisma.session.deleteMany();
     await prisma.userPermission.deleteMany();
     await prisma.user.deleteMany();
@@ -148,6 +153,29 @@ export async function seedTestWorld(
         },
     });
 
+    // Shipments (one per tenant for FK targets in booking/container tests)
+    const shipmentA = await prisma.shipment.create({
+        data: {
+            id: "shipment-a",
+            referenceNumber: "TEST-SHP-001",
+            origin: "Shanghai",
+            destination: "Rotterdam",
+            status: "in_transit",
+            tenantId: tenantA.id,
+        },
+    });
+
+    const shipmentB = await prisma.shipment.create({
+        data: {
+            id: "shipment-b",
+            referenceNumber: "TEST-SHP-002",
+            origin: "Busan",
+            destination: "Los Angeles",
+            status: "pending",
+            tenantId: tenantB.id,
+        },
+    });
+
     return {
         tenantA: {id: tenantA.id},
         tenantB: {id: tenantB.id},
@@ -158,6 +186,8 @@ export async function seedTestWorld(
         userB: {id: userB.id, email: userB.email, password: PASSWORD, tenantId: tenantB.id},
         inactiveA: {id: inactiveA.id, email: inactiveA.email, password: PASSWORD, tenantId: tenantA.id},
         invitedA: {id: invitedA.id, email: invitedA.email, inviteToken, tenantId: tenantA.id},
+        shipmentA: {id: shipmentA.id, referenceNumber: shipmentA.referenceNumber, tenantId: tenantA.id},
+        shipmentB: {id: shipmentB.id, referenceNumber: shipmentB.referenceNumber, tenantId: tenantB.id},
     };
 }
 

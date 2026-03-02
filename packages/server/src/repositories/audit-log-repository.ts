@@ -1,6 +1,6 @@
 import {success, failure, type Result, type RawModel} from "@kamers/shared";
 import type {AuditLog, User} from "../generated/prisma";
-import type {SkipTake} from "../lib/pagination";
+import type {SkipTake, PaginatedResult} from "../lib/pagination";
 import type DataService from "../services/data-service";
 import type LoggerService from "../services/logger-service";
 
@@ -25,7 +25,7 @@ class AuditLogRepository {
     async findByTenantId(
         tenantId: string,
         opts: Partial<SkipTake> = {}
-    ): Promise<Result<{data: AuditLogWithUser[]; total: number}>> {
+    ): Promise<Result<PaginatedResult<AuditLogWithUser>>> {
         try {
             const {skip = 0, take = 50} = opts;
             const [data, total] = await Promise.all([

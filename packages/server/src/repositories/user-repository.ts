@@ -1,6 +1,6 @@
 import {success, failure, type Result, type MaybeNull} from "@kamers/shared";
 import type {User, UserPermission, Permission} from "../generated/prisma/index";
-import type {SkipTake} from "../lib/pagination";
+import type {SkipTake, PaginatedResult} from "../lib/pagination";
 import type DataService from "../services/data-service";
 import type LoggerService from "../services/logger-service";
 
@@ -37,7 +37,7 @@ class UserRepository {
     async findByTenantId(
         tenantId: string,
         opts: Partial<SkipTake> = {}
-    ): Promise<Result<{data: UserWithPermissions[]; total: number}>> {
+    ): Promise<Result<PaginatedResult<UserWithPermissions>>> {
         try {
             const where = {tenantId, deletedAt: null};
             const [users, total] = await Promise.all([

@@ -1,9 +1,15 @@
 import {PrismaBetterSqlite3} from "@prisma/adapter-better-sqlite3";
 import {failure, success, type Result} from "@kamers/shared";
-import {PrismaClient} from "../generated/prisma/index";
+import {PrismaClient, Prisma} from "../generated/prisma";
 import type EnvService from "./env-service";
 
 const globalForPrisma = globalThis as unknown as {prisma?: PrismaClient};
+
+const levels: Record<"test" | "development" | "production", Prisma.LogLevel[]> = {
+    test: [],
+    development: ["query", "warn", "error"],
+    production: ["warn", "error"],
+};
 
 class DataService {
     #prisma: PrismaClient;
@@ -17,7 +23,7 @@ class DataService {
             });
             this.#prisma = new PrismaClient({
                 adapter,
-                log: env.dev ? ["query", "warn", "error"] : ["warn", "error"],
+                log: levels[env.nodeEnv],
             });
             if (!env.prod) {
                 globalForPrisma.prisma = this.#prisma;
