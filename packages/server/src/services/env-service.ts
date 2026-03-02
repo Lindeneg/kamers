@@ -9,7 +9,12 @@ class EnvService {
         readonly jwtRefreshSecret: string,
         readonly clientUrl: string,
         readonly port: number,
-        readonly nodeEnv: "test" | "development" | "production"
+        readonly nodeEnv: "test" | "development" | "production",
+        readonly googleClientId?: string,
+        readonly googleClientSecret?: string,
+        readonly microsoftClientId?: string,
+        readonly microsoftClientSecret?: string,
+        readonly microsoftTenantId?: string
     ) {}
 
     get test(): boolean {
@@ -34,6 +39,10 @@ class EnvService {
             return failure(`required envvar '${prop}' is missing`);
         }
         return transform ? transform(val, prop) : success(val as TValue);
+    }
+
+    static #parseOptional(prop: string, rawEnv: RawEnv): string | undefined {
+        return rawEnv[prop] || undefined;
     }
 
     public static make(rawEnv: RawEnv): Result<EnvService, string[]> {
@@ -72,7 +81,12 @@ class EnvService {
                 parsed.jwtRefreshSecret,
                 parsed.clientUrl,
                 parsed.port,
-                parsed.nodeEnv
+                parsed.nodeEnv,
+                EnvService.#parseOptional("GOOGLE_CLIENT_ID", rawEnv),
+                EnvService.#parseOptional("GOOGLE_CLIENT_SECRET", rawEnv),
+                EnvService.#parseOptional("MICROSOFT_CLIENT_ID", rawEnv),
+                EnvService.#parseOptional("MICROSOFT_CLIENT_SECRET", rawEnv),
+                EnvService.#parseOptional("MICROSOFT_TENANT_ID", rawEnv)
             )
         );
     }

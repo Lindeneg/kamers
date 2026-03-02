@@ -8,6 +8,9 @@ export function makeAuthRouter(controller: AuthController, authenticate: Request
     router.post("/login", controller.login);
     router.post("/refresh", controller.refresh);
     router.post("/set-password", controller.setPassword);
+    router.get("/oauth/providers", controller.oauthProviders);
+    router.get("/oauth/:provider", controller.oauthStart);
+    router.get("/oauth/:provider/callback", controller.oauthCallback);
 
     // authenticated
     router.post("/logout", authenticate, controller.logout);

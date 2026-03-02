@@ -11,6 +11,7 @@ import type UserRepository from "../repositories/user-repository";
 import type SessionRepository from "../repositories/session-repository";
 import type UserPermissionRepository from "../repositories/user-permission-repository";
 import type AuditLogRepository from "../repositories/audit-log-repository";
+import type OAuthAccountRepository from "../repositories/oauth-account-repository";
 import type DataService from "./data-service";
 
 interface LoginInput {
@@ -44,6 +45,7 @@ export const AuthSessionError = {
     SESSION_EXPIRED: "session_expired",
     NO_REFRESH_TOKEN: "no_refresh_token",
     DB_ERROR: "db_error",
+    OAUTH_ERROR: "oauth_error",
 } as const;
 
 export type AuthSessionError = (typeof AuthSessionError)[keyof typeof AuthSessionError];
@@ -55,27 +57,14 @@ class AuthSessionService {
         private readonly sessionRepo: SessionRepository,
         private readonly userPermissionRepo: UserPermissionRepository,
         private readonly auditLogRepo: AuditLogRepository,
+        private readonly oauthAccountRepo: OAuthAccountRepository,
         private readonly dataService: DataService
     ) {}
 
-    async login(
-        input: LoginInput,
+    private async createSession(
+        user: {id: string; tenantId: string},
         ctx: RequestContext
     ): Promise<Result<LoginResult, AuthSessionError>> {
-        const {email, password} = input;
-
-        const userResult = await this.userRepo.findByEmail(email);
-        if (!userResult.ok) return failure(AuthSessionError.DB_ERROR);
-
-        const user = userResult.data;
-        if (!user || !user.passwordHash) return failure(AuthSessionError.INVALID_CREDENTIALS);
-        if (!user.isActive) return failure(AuthSessionError.USER_INACTIVE);
-
-        const passwordMatch = await this.authService.comparePassword(password, user.passwordHash);
-        if (!passwordMatch.ok || !passwordMatch.data) {
-            return failure(AuthSessionError.INVALID_CREDENTIALS);
-        }
-
         const accessResult = this.authService.generateAccessToken({
             userId: user.id,
             tenantId: user.tenantId,
@@ -105,25 +94,46 @@ class AuthSessionService {
                     data: {refreshToken: tokenResult.data},
                 });
 
-                return {session: s, refreshToken: tokenResult.data};
+                return {refreshToken: tokenResult.data};
             });
 
-            await this.auditLogRepo.create({
-                action: "login",
-                entity: "user",
-                entityId: user.id,
-                tenantId: user.tenantId,
-                userId: user.id,
-                ipAddress: ctx.ipAddress,
-            });
-
-            return success({
-                accessToken: accessResult.data,
-                refreshToken,
-            });
+            return success({accessToken: accessResult.data, refreshToken});
         } catch {
             return failure(AuthSessionError.DB_ERROR);
         }
+    }
+
+    async login(
+        input: LoginInput,
+        ctx: RequestContext
+    ): Promise<Result<LoginResult, AuthSessionError>> {
+        const {email, password} = input;
+
+        const userResult = await this.userRepo.findByEmail(email);
+        if (!userResult.ok) return failure(AuthSessionError.DB_ERROR);
+
+        const user = userResult.data;
+        if (!user || !user.passwordHash) return failure(AuthSessionError.INVALID_CREDENTIALS);
+        if (!user.isActive) return failure(AuthSessionError.USER_INACTIVE);
+
+        const passwordMatch = await this.authService.comparePassword(password, user.passwordHash);
+        if (!passwordMatch.ok || !passwordMatch.data) {
+            return failure(AuthSessionError.INVALID_CREDENTIALS);
+        }
+
+        const result = await this.createSession(user, ctx);
+        if (!result.ok) return result;
+
+        await this.auditLogRepo.create({
+            action: "login",
+            entity: "user",
+            entityId: user.id,
+            tenantId: user.tenantId,
+            userId: user.id,
+            ipAddress: ctx.ipAddress,
+        });
+
+        return result;
     }
 
     async logout(refreshToken: string | undefined, ctx: RequestContext): Promise<void> {
@@ -171,49 +181,71 @@ class AuthSessionService {
         const user = session.user;
         if (!user.isActive) return failure(AuthSessionError.USER_INACTIVE);
 
-        const accessResult = this.authService.generateAccessToken({
-            userId: user.id,
-            tenantId: user.tenantId,
-        });
-        if (!accessResult.ok) return failure(AuthSessionError.DB_ERROR);
+        await this.sessionRepo.deleteById(session.id);
 
-        try {
-            const {refreshToken: newRefreshToken} = await this.dataService.p.$transaction(
-                async (tx) => {
-                    await tx.session.delete({where: {id: session.id}});
+        return this.createSession(user, ctx);
+    }
 
-                    const newSession = await tx.session.create({
-                        data: {
-                            userId: user.id,
-                            refreshToken: "pending",
-                            userAgent: ctx.userAgent,
-                            ipAddress: ctx.ipAddress,
-                            expiresAt: this.authService.getRefreshTokenExpiry(),
-                        },
-                    });
+    async oauthLogin(
+        provider: string,
+        profile: {sub: string; email: string; name: string},
+        ctx: RequestContext
+    ): Promise<Result<LoginResult, AuthSessionError>> {
+        // 1. Check if this OAuth identity is already linked
+        const oauthResult = await this.oauthAccountRepo.findByProviderAccount(provider, profile.sub);
+        if (!oauthResult.ok) return failure(AuthSessionError.DB_ERROR);
 
-                    const tokenResult = this.authService.generateRefreshToken({
-                        sessionId: newSession.id,
-                        userId: user.id,
-                    });
-                    if (!tokenResult.ok) throw new Error("token_generation_failed");
+        if (oauthResult.data) {
+            const user = oauthResult.data.user;
+            if (!user.isActive || user.deletedAt) return failure(AuthSessionError.USER_INACTIVE);
 
-                    await tx.session.update({
-                        where: {id: newSession.id},
-                        data: {refreshToken: tokenResult.data},
-                    });
+            const result = await this.createSession(user, ctx);
+            if (!result.ok) return result;
 
-                    return {refreshToken: tokenResult.data};
-                }
-            );
-
-            return success({
-                accessToken: accessResult.data,
-                refreshToken: newRefreshToken,
+            await this.auditLogRepo.create({
+                action: "oauth_login",
+                entity: "user",
+                entityId: user.id,
+                tenantId: user.tenantId,
+                userId: user.id,
+                ipAddress: ctx.ipAddress,
+                details: JSON.stringify({provider}),
             });
-        } catch {
-            return failure(AuthSessionError.DB_ERROR);
+
+            return result;
         }
+
+        // 2. No linked account — try to find user by email and auto-link
+        const userResult = await this.userRepo.findByEmail(profile.email);
+        if (!userResult.ok) return failure(AuthSessionError.DB_ERROR);
+
+        const user = userResult.data;
+        if (!user || !user.isActive || user.deletedAt) {
+            return failure(AuthSessionError.USER_NOT_FOUND);
+        }
+
+        // Auto-link this OAuth identity to the existing user
+        const linkResult = await this.oauthAccountRepo.create({
+            provider,
+            providerAccountId: profile.sub,
+            userId: user.id,
+        });
+        if (!linkResult.ok) return failure(AuthSessionError.DB_ERROR);
+
+        const result = await this.createSession(user, ctx);
+        if (!result.ok) return result;
+
+        await this.auditLogRepo.create({
+            action: "oauth_login",
+            entity: "user",
+            entityId: user.id,
+            tenantId: user.tenantId,
+            userId: user.id,
+            ipAddress: ctx.ipAddress,
+            details: JSON.stringify({provider, linked: true}),
+        });
+
+        return result;
     }
 
     async getMe(userId: string): Promise<Result<MeResult, AuthSessionError>> {

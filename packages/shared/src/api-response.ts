@@ -19,6 +19,9 @@ export type AuthResponse = {
         isSuperAdmin: boolean;
         permissions: Permission[];
     };
+    oauthProviders: {
+        providers: string[];
+    };
 };
 
 export interface Shipment {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import {ref, onMounted} from "vue";
 import {useRouter, useRoute} from "vue-router";
 import {useAuthStore} from "../stores/auth";
+import {getOAuthProviders} from "../api/auth";
 import BaseButton from "../components/base/BaseButton.vue";
 import BaseAlert from "../components/base/BaseAlert.vue";
 import FormInput from "../components/form/FormInput.vue";
@@ -14,6 +15,27 @@ const email = ref("");
 const password = ref("");
 const error = ref("");
 const submitting = ref(false);
+const providers = ref<string[]>([]);
+
+const providerLabels: Record<string, string> = {
+    google: "Google",
+    microsoft: "Microsoft",
+};
+
+onMounted(async () => {
+    if (route.query.error === "oauth_failed") {
+        error.value = "Sign-in failed. Your account may not exist yet.";
+    }
+
+    const result = await getOAuthProviders();
+    if (result.ok) {
+        providers.value = result.data.providers;
+    }
+});
+
+function startOAuth(provider: string) {
+    window.location.href = `/api/auth/oauth/${provider}`;
+}
 
 async function handleSubmit() {
     error.value = "";
@@ -44,6 +66,21 @@ async function handleSubmit() {
                 <h1>Kamers</h1>
             </div>
             <p class="login-subtitle">Sign in to your account</p>
+
+            <div v-if="providers.length" class="oauth-buttons">
+                <BaseButton
+                    v-for="provider in providers"
+                    :key="provider"
+                    variant="secondary"
+                    class="oauth-btn"
+                    @click="startOAuth(provider)">
+                    Sign in with {{ providerLabels[provider] ?? provider }}
+                </BaseButton>
+
+                <div class="divider">
+                    <span>or</span>
+                </div>
+            </div>
 
             <form @submit.prevent="handleSubmit">
                 <div class="form-fields">
@@ -108,6 +145,33 @@ async function handleSubmit() {
 .login-subtitle {
     margin: var(--space-1) 0 var(--space-8);
     color: var(--color-neutral-weak-text);
+}
+
+.oauth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+}
+
+.oauth-btn {
+    width: 100%;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-neutral-weak-text);
+    font-size: var(--font-size-sm);
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-neutral-border);
 }
 
 .form-fields {

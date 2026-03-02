@@ -23,3 +23,7 @@ export function getMe() {
 export function setPassword(token: string, password: string) {
     return wrap(api.post<AuthResponse["setPassword"]>("/auth/set-password", {token, password}));
 }
+
+export function getOAuthProviders() {
+    return wrap(api.get<AuthResponse["oauthProviders"]>("/auth/oauth/providers"));
+}

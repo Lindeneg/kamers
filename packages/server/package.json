@@ -16,6 +16,7 @@
         "@kamers/shared": "*",
         "@prisma/adapter-better-sqlite3": "7.4.1",
         "@prisma/client": "7.4.1",
+        "arctic": "^3.7.0",
         "bcrypt": "6.0.0",
         "cookie-parser": "1.4.7",
         "cors": "2.8.6",
