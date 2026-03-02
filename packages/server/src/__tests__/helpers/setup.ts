@@ -18,6 +18,8 @@ import PermissionRepository from "../../repositories/permission-repository";
 import SessionRepository from "../../repositories/session-repository";
 import AuditLogRepository from "../../repositories/audit-log-repository";
 import UserPermissionRepository from "../../repositories/user-permission-repository";
+import OAuthAccountRepository from "../../repositories/oauth-account-repository";
+import OAuthService from "../../services/oauth-service";
 import AuthController from "../../controllers/auth-controller";
 import TenantController from "../../controllers/tenant-controller";
 import UsersController from "../../controllers/users-controller";
@@ -54,6 +56,7 @@ export async function createTestApp(): Promise<TestApp> {
     const sessionRepo = new SessionRepository(dataService, log);
     const auditLogRepo = new AuditLogRepository(dataService, log);
     const userPermissionRepo = new UserPermissionRepository(dataService, log);
+    const oauthAccountRepo = new OAuthAccountRepository(dataService, log);
 
     const authService = new AuthService(
         env,
@@ -68,12 +71,15 @@ export async function createTestApp(): Promise<TestApp> {
 
     const emailService = new EmailService(log, env.clientUrl);
 
+    const oauthService = new OAuthService(env, log);
+
     const authSessionService = new AuthSessionService(
         authService,
         userRepo,
         sessionRepo,
         userPermissionRepo,
         auditLogRepo,
+        oauthAccountRepo,
         dataService
     );
     const userService = new UserService(
@@ -96,7 +102,7 @@ export async function createTestApp(): Promise<TestApp> {
     const shipmentService = new ShipmentService();
     const auditLogService = new AuditLogService(auditLogRepo, userRepo);
 
-    const authController = new AuthController(authService, authSessionService);
+    const authController = new AuthController(authService, authSessionService, oauthService, env);
     const tenantController = new TenantController(tenantService);
     const usersController = new UsersController(userService);
     const shipmentsController = new ShipmentsController(shipmentService);
