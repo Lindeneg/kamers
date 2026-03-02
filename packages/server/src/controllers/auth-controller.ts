@@ -117,7 +117,7 @@ class AuthController {
     };
 
     oauthStart = (req: Request, res: Response, next: NextFunction) => {
-        const provider = req.params.provider!;
+        const provider = req.params.provider as string;
         const result = this.oauthService.createAuthorizationURL(provider);
         if (!result.ok) return next(HttpException.notFound());
 
@@ -135,7 +135,7 @@ class AuthController {
     };
 
     oauthCallback = async (req: Request, res: Response, _next: NextFunction) => {
-        const provider = req.params.provider!;
+        const provider = req.params.provider as string;
         const code = req.query.code as string | undefined;
         const state = req.query.state as string | undefined;
         const storedState = req.cookies?.oauth_state as string | undefined;
