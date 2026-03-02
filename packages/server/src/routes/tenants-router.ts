@@ -6,6 +6,7 @@ export function makeTenantsRouter(controller: TenantController) {
 
     router.post("/", controller.create);
     router.get("/", controller.list);
+    router.delete("/:id", controller.delete);
 
     return router;
 }

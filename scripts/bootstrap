@@ -21,7 +21,7 @@ echo "building shared package"
 npm run build:shared
 
 echo "migrating database"
-npm run db:migrate -- -- --config prisma.config.dev.ts
+npm run db:deploy -- -- --config prisma.config.dev.ts
 
 echo "generating prisma client"
 npm run db:generate -- -- --config prisma.config.dev.ts

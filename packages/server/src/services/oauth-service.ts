@@ -7,6 +7,7 @@ export interface OAuthProfile {
     sub: string;
     email: string;
     name: string;
+    picture?: string;
 }
 
 const SCOPES = ["openid", "email", "profile"];
@@ -69,12 +70,13 @@ class OAuthService {
             const sub = claims.sub as string | undefined;
             const email = claims.email as string | undefined;
             const name = (claims.name as string | undefined) ?? email ?? "";
+            const picture = claims.picture as string | undefined;
 
             if (!sub || !email) {
                 return failure("id token missing required claims (sub, email)");
             }
 
-            return success({sub, email, name});
+            return success({sub, email, name, picture});
         } catch (err) {
             this.log.error(err, "oauth callback validation failed");
             return failure("oauth callback validation failed");

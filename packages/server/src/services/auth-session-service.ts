@@ -186,9 +186,25 @@ class AuthSessionService {
         return this.createSession(user, ctx);
     }
 
+    private async activateInvitedUser(userId: string): Promise<void> {
+        await this.dataService.p.user.update({
+            where: {id: userId},
+            data: {inviteToken: null, inviteTokenExpiry: null, isActive: true},
+        });
+    }
+
+    private async updatePictureUrl(userId: string, picture: string | undefined, current: string | null): Promise<void> {
+        if (picture && current !== picture) {
+            await this.dataService.p.user.update({
+                where: {id: userId},
+                data: {pictureUrl: picture},
+            });
+        }
+    }
+
     async oauthLogin(
         provider: string,
-        profile: {sub: string; email: string; name: string},
+        profile: {sub: string; email: string; name: string; picture?: string},
         ctx: RequestContext
     ): Promise<Result<LoginResult, AuthSessionError>> {
         // 1. Check if this OAuth identity is already linked
@@ -197,7 +213,11 @@ class AuthSessionService {
 
         if (oauthResult.data) {
             const user = oauthResult.data.user;
-            if (!user.isActive || user.deletedAt) return failure(AuthSessionError.USER_INACTIVE);
+            if (user.deletedAt) return failure(AuthSessionError.USER_INACTIVE);
+            if (!user.isActive && !user.inviteToken) return failure(AuthSessionError.USER_INACTIVE);
+
+            if (user.inviteToken) await this.activateInvitedUser(user.id);
+            await this.updatePictureUrl(user.id, profile.picture, user.pictureUrl);
 
             const result = await this.createSession(user, ctx);
             if (!result.ok) return result;
@@ -220,9 +240,12 @@ class AuthSessionService {
         if (!userResult.ok) return failure(AuthSessionError.DB_ERROR);
 
         const user = userResult.data;
-        if (!user || !user.isActive || user.deletedAt) {
-            return failure(AuthSessionError.USER_NOT_FOUND);
-        }
+        if (!user) return failure(AuthSessionError.USER_NOT_FOUND);
+        if (user.deletedAt) return failure(AuthSessionError.USER_NOT_FOUND);
+        if (!user.isActive && !user.inviteToken) return failure(AuthSessionError.USER_INACTIVE);
+
+        if (user.inviteToken) await this.activateInvitedUser(user.id);
+        await this.updatePictureUrl(user.id, profile.picture, user.pictureUrl);
 
         // Auto-link this OAuth identity to the existing user
         const linkResult = await this.oauthAccountRepo.create({
@@ -263,6 +286,7 @@ class AuthSessionService {
             name: user.name,
             tenantId: user.tenantId,
             isSuperAdmin: user.isSuperAdmin,
+            pictureUrl: user.pictureUrl ?? null,
             permissions: permissionsResult.data,
         });
     }

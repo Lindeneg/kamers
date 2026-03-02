@@ -50,6 +50,7 @@ function setAuthState(overrides: {
         name: "Test User",
         tenantId: "test-tenant",
         isSuperAdmin: overrides.isSuperAdmin ?? false,
+        pictureUrl: null,
         permissions: overrides.permissions ?? [],
     };
 }

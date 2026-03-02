@@ -2,7 +2,7 @@
 import {ref} from "vue";
 import {useTenantsStore} from "../stores/tenants";
 import {usePaginatedResource} from "../composables/usePaginatedRoute";
-import {createTenant} from "../api/tenants";
+import {createTenant, deleteTenant} from "../api/tenants";
 import BaseCard from "../components/base/BaseCard.vue";
 import BaseTable, {type TableColumn} from "../components/base/BaseTable.vue";
 import BaseButton from "../components/base/BaseButton.vue";
@@ -14,6 +14,7 @@ import PaginationControls from "../components/base/PaginationControls.vue";
 const columns: TableColumn[] = [
     {key: "name", label: "Organization"},
     {key: "domains", label: "Domains"},
+    {key: "actions", label: ""},
 ];
 
 const store = useTenantsStore();
@@ -28,6 +29,12 @@ const adminName = ref("");
 const createLoading = ref(false);
 const createError = ref("");
 const createSuccess = ref<{email: string} | null>(null);
+
+// Delete tenant dialog
+const showDelete = ref(false);
+const deleteTarget = ref<{id: string; name: string} | null>(null);
+const deleteLoading = ref(false);
+const deleteError = ref("");
 
 function resetCreateForm() {
     tenantName.value = "";
@@ -78,6 +85,27 @@ function handleConfirm() {
         handleCreate();
     }
 }
+
+function openDeleteDialog(row: {id: string; name: string}) {
+    deleteTarget.value = row;
+    deleteError.value = "";
+    showDelete.value = true;
+}
+
+async function handleDelete() {
+    if (!deleteTarget.value) return;
+    deleteError.value = "";
+    deleteLoading.value = true;
+    const result = await deleteTenant(deleteTarget.value.id);
+    if (result.ok) {
+        showDelete.value = false;
+        deleteTarget.value = null;
+        refetch();
+    } else {
+        deleteError.value = result.ctx;
+    }
+    deleteLoading.value = false;
+}
 </script>
 
 <template>
@@ -115,6 +143,17 @@ function handleConfirm() {
                             {{ d.domain }}
                         </span>
                     </template>
+                    <template #cell-actions="{row}">
+                        <div class="actions">
+                            <BaseButton
+                                class="btn-delete"
+                                variant="ghost"
+                                size="sm"
+                                @click="openDeleteDialog(row)">
+                                Delete
+                            </BaseButton>
+                        </div>
+                    </template>
                 </BaseTable>
             </BaseCard>
             </PaginationControls>
@@ -147,6 +186,27 @@ function handleConfirm() {
                     <FormInput id="admin-name" v-model="adminName" label="Admin name" required />
                     <BaseAlert v-if="createError" variant="error">{{ createError }}</BaseAlert>
                 </template>
+            </div>
+        </BaseDialog>
+
+        <!-- Delete tenant dialog -->
+        <BaseDialog
+            :open="showDelete"
+            title="Delete tenant"
+            confirm-label="Delete"
+            confirm-variant="danger"
+            :loading="deleteLoading"
+            @confirm="handleDelete"
+            @cancel="showDelete = false">
+            <div class="dialog-fields">
+                <p>
+                    Are you sure you want to delete
+                    <strong>{{ deleteTarget?.name }}</strong>?
+                </p>
+                <p class="delete-warning">
+                    This will deactivate all users in this tenant and they will no longer be able to log in.
+                </p>
+                <BaseAlert v-if="deleteError" variant="error">{{ deleteError }}</BaseAlert>
             </div>
         </BaseDialog>
     </div>
@@ -192,5 +252,26 @@ function handleConfirm() {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+}
+
+.actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+
+.btn-delete {
+    color: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.btn-delete:hover:not(:disabled) {
+    background: var(--color-error-weak-bg);
+}
+
+.delete-warning {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
 }
 </style>

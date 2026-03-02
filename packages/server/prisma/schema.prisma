@@ -14,10 +14,11 @@ datasource db {
 // filter by tenantId to prevent cross-tenant data leaks.
 
 model Tenant {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   domains   TenantDomain[]
   users     User[]
@@ -58,6 +59,7 @@ model User {
   isActive      Boolean  @default(true)
   isSuperAdmin  Boolean  @default(false)
   isTenantAdmin Boolean  @default(false)
+  pictureUrl   String?
   tenantId     String
   deletedAt    DateTime?
   createdAt    DateTime @default(now())

@@ -17,6 +17,7 @@ export type AuthResponse = {
         name: string;
         tenantId: string;
         isSuperAdmin: boolean;
+        pictureUrl: MaybeNull<string>;
         permissions: Permission[];
     };
     oauthProviders: {
@@ -61,6 +62,7 @@ export type TenantsResponse = {
             email: string;
         };
     };
+    delete: BasePayload;
 };
 
 export interface UserDetail {
