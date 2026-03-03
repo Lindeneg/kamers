@@ -14,7 +14,8 @@ const createTenantSchema = z.object({
     adminName: z.string().min(1),
 });
 
-function mapTenantError(error: TenantError): HttpException {
+function mapTenantError(req: Request, error: TenantError): HttpException {
+    req.log.error(error);
     switch (error) {
         case TenantError.FORBIDDEN:
             return HttpException.forbidden();
@@ -36,7 +37,7 @@ class TenantController {
             actingUserId: req.auth.userId,
             ipAddress: req.ip,
         });
-        if (!result.ok) return next(mapTenantError(result.ctx));
+        if (!result.ok) return next(mapTenantError(req, result.ctx));
 
         res.status(201).json(result.data);
     };
@@ -46,7 +47,7 @@ class TenantController {
 
         const pagination = parsePagination(req);
         const result = await this.tenantService.list(req.auth.userId, pagination);
-        if (!result.ok) return next(mapTenantError(result.ctx));
+        if (!result.ok) return next(mapTenantError(req, result.ctx));
 
         res.json(result.data);
     };

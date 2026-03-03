@@ -23,16 +23,77 @@ export type AuthResponse = {
 
 export interface Shipment {
     id: string;
+    referenceNumber: string;
     origin: string;
     destination: string;
     status: string;
+    estimatedArrival: MaybeNull<string>;
     tenantId: string;
+    createdAt: Date;
+    updatedAt: Date;
 }
+
+export type CreateShipmentInput = Pick<Shipment, "referenceNumber" | "origin" | "destination"> & {
+    status?: string;
+    estimatedArrival?: MaybeNull<string>;
+};
+
+export type UpdateShipmentInput = Partial<CreateShipmentInput>;
 
 export type ShipmentsResponse = {
     list: Paginated<Shipment>;
-    getById: Shipment;
     create: Shipment;
+    update: Shipment;
+    delete: BasePayload;
+};
+
+export interface Booking {
+    id: string;
+    shipmentId: string;
+    customerName: string;
+    customerEmail: string;
+    status: string;
+    bookedAt: Date;
+    tenantId: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export type CreateBookingInput = Pick<Booking, "shipmentId" | "customerName" | "customerEmail"> & {
+    status?: string;
+};
+
+export type UpdateBookingInput = Partial<Omit<CreateBookingInput, "shipmentId">>;
+
+export type BookingsResponse = {
+    list: Paginated<Booking>;
+    create: Booking;
+    update: Booking;
+    delete: BasePayload;
+};
+
+export interface Container {
+    id: string;
+    shipmentId: string;
+    containerNumber: string;
+    type: string;
+    status: string;
+    tenantId: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export type CreateContainerInput = Pick<Container, "shipmentId" | "containerNumber" | "type"> & {
+    status?: string;
+};
+
+export type UpdateContainerInput = Partial<Omit<CreateContainerInput, "shipmentId">>;
+
+export type ContainersResponse = {
+    list: Paginated<Container>;
+    create: Container;
+    update: Container;
+    delete: BasePayload;
 };
 
 export interface TenantDomain {
@@ -107,6 +168,8 @@ export type AuditLogsResponse = {
 export type APIPayload = {
     auth: AuthResponse;
     shipments: ShipmentsResponse;
+    bookings: BookingsResponse;
+    containers: ContainersResponse;
     tenants: TenantsResponse;
     users: UsersResponse;
     auditLogs: AuditLogsResponse;

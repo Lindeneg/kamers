@@ -54,7 +54,10 @@ export function usePaginatedResource(
         return params;
     }
 
-    onMounted(() => store.fetch(buildParams()));
+    onMounted(() => {
+        store.invalidate();
+        store.fetch(buildParams());
+    });
 
     // Note: pag.setPage/setPageSize/setFilter call router.replace (async), so we pass
     // explicit overrides to buildParams rather than reading from route (which hasn't updated yet).

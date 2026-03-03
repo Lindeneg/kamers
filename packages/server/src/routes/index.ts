@@ -3,6 +3,8 @@ import type AuthController from "../controllers/auth-controller";
 import type TenantController from "../controllers/tenant-controller";
 import type UsersController from "../controllers/users-controller";
 import type ShipmentsController from "../controllers/shipments-controller";
+import type BookingsController from "../controllers/bookings-controller";
+import type ContainersController from "../controllers/containers-controller";
 import type AuditLogController from "../controllers/audit-log-controller";
 import type DataService from "../services/data-service";
 import type {CreateRequirePermission} from "../middleware/require-permission";
@@ -10,6 +12,8 @@ import {makeAuthRouter} from "./auth-router";
 import {makeTenantsRouter} from "./tenants-router";
 import {makeUsersRouter} from "./users-router";
 import {makeShipmentsRouter} from "./shipments-router";
+import {makeBookingsRouter} from "./bookings-router";
+import {makeContainersRouter} from "./containers-router";
 import {makeAuditLogRouter} from "./audit-log-router";
 import {makeHealthRouter} from "./health-router";
 
@@ -18,6 +22,8 @@ export function makeAppRouter(
     tenantController: TenantController,
     usersController: UsersController,
     shipmentsController: ShipmentsController,
+    bookingsController: BookingsController,
+    containersController: ContainersController,
     auditLogController: AuditLogController,
     dataService: DataService,
     authenticate: RequestHandler,
@@ -36,6 +42,16 @@ export function makeAppRouter(
         "/shipments",
         authenticate,
         makeShipmentsRouter(shipmentsController, requirePermission)
+    );
+    router.use(
+        "/bookings",
+        authenticate,
+        makeBookingsRouter(bookingsController, requirePermission)
+    );
+    router.use(
+        "/containers",
+        authenticate,
+        makeContainersRouter(containersController, requirePermission)
     );
     router.use(
         "/audit-logs",

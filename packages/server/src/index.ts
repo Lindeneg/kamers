@@ -8,6 +8,8 @@ import AuthSessionService from "./services/auth-session-service";
 import UserService from "./services/user-service";
 import TenantService from "./services/tenant-service";
 import ShipmentService from "./services/shipment-service";
+import BookingService from "./services/booking-service";
+import ContainerService from "./services/container-service";
 import AuditLogService from "./services/audit-log-service";
 import EmailService from "./services/email-service";
 import TenantRepository from "./repositories/tenant-repository";
@@ -16,10 +18,15 @@ import PermissionRepository from "./repositories/permission-repository";
 import SessionRepository from "./repositories/session-repository";
 import AuditLogRepository from "./repositories/audit-log-repository";
 import UserPermissionRepository from "./repositories/user-permission-repository";
+import ShipmentRepository from "./repositories/shipment-repository";
+import BookingRepository from "./repositories/booking-repository";
+import ContainerRepository from "./repositories/container-repository";
 import AuthController from "./controllers/auth-controller";
 import TenantController from "./controllers/tenant-controller";
 import UsersController from "./controllers/users-controller";
 import ShipmentsController from "./controllers/shipments-controller";
+import BookingsController from "./controllers/bookings-controller";
+import ContainersController from "./controllers/containers-controller";
 import AuditLogController from "./controllers/audit-log-controller";
 import {createAuthenticate} from "./middleware/authenticate";
 import {createRequirePermission} from "./middleware/require-permission";
@@ -41,6 +48,9 @@ async function main(args: string[] | undefined) {
     const sessionRepo = new SessionRepository(dataService, log);
     const auditLogRepo = new AuditLogRepository(dataService, log);
     const userPermissionRepo = new UserPermissionRepository(dataService, log);
+    const shipmentRepo = new ShipmentRepository(dataService, log);
+    const bookingRepo = new BookingRepository(dataService, log);
+    const containerRepo = new ContainerRepository(dataService, log);
 
     const authService = new AuthService(
         env,
@@ -80,16 +90,20 @@ async function main(args: string[] | undefined) {
         emailService
     );
 
-    const shipmentService = new ShipmentService();
+    const shipmentService = new ShipmentService(shipmentRepo, auditLogRepo);
+    const bookingService = new BookingService(bookingRepo, shipmentRepo, auditLogRepo);
+    const containerService = new ContainerService(containerRepo, shipmentRepo, auditLogRepo);
     const auditLogService = new AuditLogService(auditLogRepo, userRepo);
 
     const authController = new AuthController(authService, authSessionService);
     const tenantController = new TenantController(tenantService);
     const usersController = new UsersController(userService);
     const shipmentsController = new ShipmentsController(shipmentService);
+    const bookingsController = new BookingsController(bookingService);
+    const containersController = new ContainersController(containerService);
     const auditLogController = new AuditLogController(auditLogService);
 
-    const authenticateMiddleware = createAuthenticate(authService);
+    const authenticateMiddleware = createAuthenticate(authService, userRepo);
     const requirePermissionMiddleware = createRequirePermission(userPermissionRepo);
 
     const router = makeAppRouter(
@@ -97,6 +111,8 @@ async function main(args: string[] | undefined) {
         tenantController,
         usersController,
         shipmentsController,
+        bookingsController,
+        containersController,
         auditLogController,
         dataService,
         authenticateMiddleware,

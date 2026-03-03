@@ -19,9 +19,12 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  domains   TenantDomain[]
-  users     User[]
-  auditLogs AuditLog[]
+  domains    TenantDomain[]
+  users      User[]
+  auditLogs  AuditLog[]
+  shipments  Shipment[]
+  bookings   Booking[]
+  containers Container[]
 }
 
 // Maps email domains to tenants. A tenant can own multiple domains (e.g.
@@ -155,4 +158,73 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
   @@index([userId])
+}
+
+// ─── Shipments ────────────────────────────────────────────────────────────────
+// A shipment represents a physical cargo movement from origin to destination.
+// referenceNumber is a unique business identifier (e.g. "SHP-2024-001").
+// status tracks the lifecycle: pending → in_transit → delivered (or customs_hold / cancelled).
+// estimatedArrival is nullable — not all shipments have ETAs upfront.
+
+model Shipment {
+  id               String    @id @default(cuid())
+  referenceNumber  String    @unique
+  origin           String
+  destination      String
+  status           String    @default("pending")
+  estimatedArrival DateTime?
+  tenantId         String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  bookings   Booking[]
+  containers Container[]
+
+  @@index([tenantId])
+}
+
+// ─── Bookings ─────────────────────────────────────────────────────────────────
+// A booking links a customer to a shipment. Multiple bookings can reference
+// the same shipment (e.g. consolidated cargo). The service layer validates
+// that the shipment belongs to the same tenant before allowing creation.
+
+model Booking {
+  id            String   @id @default(cuid())
+  shipmentId    String
+  customerName  String
+  customerEmail String
+  status        String   @default("pending")
+  bookedAt      DateTime @default(now())
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([shipmentId])
+}
+
+// ─── Containers ───────────────────────────────────────────────────────────────
+// A container is a physical unit loaded onto a shipment. containerNumber is
+// the standard ISO container ID. type indicates size (20ft, 40ft, 40ft_hc).
+// status tracks the container lifecycle independently of the shipment.
+
+model Container {
+  id              String   @id @default(cuid())
+  shipmentId      String
+  containerNumber String
+  type            String
+  status          String   @default("empty")
+  tenantId        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([shipmentId])
 }

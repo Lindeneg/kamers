@@ -20,7 +20,8 @@ const toggleActiveSchema = z.object({
     isActive: z.boolean(),
 });
 
-function mapUserError(error: UserError): HttpException {
+function mapUserError(req: Request, error: UserError): HttpException {
+    req.log.error(error);
     switch (error) {
         case UserError.EMAIL_TAKEN:
             return HttpException.unprocessable(undefined, "A user with this email already exists");
@@ -55,7 +56,7 @@ class UsersController {
             req.auth.userId,
             pagination
         );
-        if (!result.ok) return next(mapUserError(result.ctx));
+        if (!result.ok) return next(mapUserError(req, result.ctx));
 
         res.json(result.data);
     };
@@ -71,7 +72,7 @@ class UsersController {
             userId: req.auth.userId,
             ipAddress: req.ip,
         });
-        if (!result.ok) return next(mapUserError(result.ctx));
+        if (!result.ok) return next(mapUserError(req, result.ctx));
 
         res.status(201).json(result.data);
     };
@@ -93,7 +94,7 @@ class UsersController {
                 ipAddress: req.ip,
             }
         );
-        if (!result.ok) return next(mapUserError(result.ctx));
+        if (!result.ok) return next(mapUserError(req, result.ctx));
 
         res.json({msg: "permissions updated"});
     };
@@ -109,7 +110,7 @@ class UsersController {
             actingUserId: req.auth.userId,
             ipAddress: req.ip,
         });
-        if (!result.ok) return next(mapUserError(result.ctx));
+        if (!result.ok) return next(mapUserError(req, result.ctx));
 
         res.json({msg: "ownership transferred"});
     };
@@ -128,7 +129,7 @@ class UsersController {
             actingUserId: req.auth.userId,
             ipAddress: req.ip,
         });
-        if (!result.ok) return next(mapUserError(result.ctx));
+        if (!result.ok) return next(mapUserError(req, result.ctx));
 
         res.json({msg: parsed.data.isActive ? "user activated" : "user deactivated"});
     };
@@ -144,7 +145,7 @@ class UsersController {
             actingUserId: req.auth.userId,
             ipAddress: req.ip,
         });
-        if (!result.ok) return next(mapUserError(result.ctx));
+        if (!result.ok) return next(mapUserError(req, result.ctx));
 
         res.json({msg: "user deleted"});
     };

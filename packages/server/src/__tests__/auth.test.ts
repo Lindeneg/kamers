@@ -167,6 +167,74 @@ describe("auth", () => {
         expect(res.body.permissions).toHaveLength(2);
     });
 
+    it("deactivated user cannot access protected routes", async () => {
+        // Activate the inactive user so we can log in
+        await t.dataService.p.user.update({
+            where: {id: world.inactiveA.id},
+            data: {isActive: true},
+        });
+
+        const agent = supertest.agent(t.app);
+        await agent
+            .post("/api/auth/login")
+            .send({email: world.inactiveA.email, password: world.inactiveA.password})
+            .expect(200);
+
+        // Verify access works
+        const meRes = await agent.get("/api/auth/me");
+        expect(meRes.status).toBe(200);
+
+        // Deactivate the user
+        await t.dataService.p.user.update({
+            where: {id: world.inactiveA.id},
+            data: {isActive: false},
+        });
+
+        // Access should now be denied
+        const blockedRes = await agent.get("/api/auth/me");
+        expect(blockedRes.status).toBe(401);
+    });
+
+    it("deleted user cannot access protected routes", async () => {
+        // Create a temporary user to delete
+        const passwordHash = await t.authService.hashPassword("TempPass123!");
+        const tempUser = await t.dataService.p.user.create({
+            data: {
+                email: "temp-delete@acme.com",
+                name: "Temp Delete",
+                passwordHash: passwordHash.ok ? passwordHash.data : "",
+                tenantId: world.tenantA.id,
+            },
+        });
+
+        const agent = supertest.agent(t.app);
+        await agent
+            .post("/api/auth/login")
+            .send({email: "temp-delete@acme.com", password: "TempPass123!"})
+            .expect(200);
+
+        // Verify access works
+        const meRes = await agent.get("/api/auth/me");
+        expect(meRes.status).toBe(200);
+
+        // Soft-delete the user
+        await t.dataService.p.$transaction(async (tx) => {
+            await tx.user.update({
+                where: {id: tempUser.id},
+                data: {
+                    deletedAt: new Date(),
+                    isActive: false,
+                    email: `deleted_${tempUser.id}_${tempUser.email}`,
+                },
+            });
+            await tx.session.deleteMany({where: {userId: tempUser.id}});
+        });
+
+        // Access should now be denied
+        const blockedRes = await agent.get("/api/auth/me");
+        expect(blockedRes.status).toBe(401);
+    });
+
     it("unauthenticated request to protected route returns 401", async () => {
         const res = await supertest(t.app).get("/api/auth/me");
         expect(res.status).toBe(401);

@@ -15,5 +15,9 @@ export function makeShipmentsRouter(
 
     router.post("/", requirePermission(PERMISSIONS.SHIPMENTS_WRITE), controller.create);
 
+    router.put("/:id", requirePermission(PERMISSIONS.SHIPMENTS_WRITE), controller.update);
+
+    router.delete("/:id", requirePermission(PERMISSIONS.SHIPMENTS_WRITE), controller.delete);
+
     return router;
 }

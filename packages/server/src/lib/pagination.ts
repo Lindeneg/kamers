@@ -13,6 +13,8 @@ export function parsePagination(req: Request): PaginationParams {
 
 export type SkipTake = {skip: number; take: number};
 
+export type PaginatedResult<T> = {data: T[]; total: number};
+
 export function toSkipTake(params: PaginationParams): SkipTake {
     return {
         skip: (params.page - 1) * params.pageSize,
